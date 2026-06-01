@@ -151,7 +151,10 @@ export default function App() {
       {tab === "devices" ? (
         <DevicesView
           devices={data.devices}
-          discovering={data.busy === "devices"}
+          discovering={
+            data.busy === "devices" ||
+            data.discoveryStatus.phase === "discovering"
+          }
           onDiscover={() => void data.discoverDevices()}
           onToggle={(device, selected) =>
             void data.setDeviceSelected(device, selected)

@@ -64,7 +64,7 @@ export function DevicesView({
         </div>
         <Button onClick={onDiscover} disabled={discovering}>
           {discovering ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-          Discover
+          {discovering ? "Discovering" : "Discover"}
         </Button>
       </div>
       <p className="-mt-2 text-sm text-muted-foreground">

@@ -15,8 +15,8 @@ use crate::{
     app_state::{ApiState, SharedState},
     db, discovery,
     models::{
-        Device, DevicePatch, FavoriteOrderPatch, FavoritePatch, ScanResult, ScanStatusView,
-        Service, Settings, SettingsView, UpdateStatusView,
+        Device, DevicePatch, DiscoveryStatusView, FavoriteOrderPatch, FavoritePatch, ScanResult,
+        ScanStatusView, Service, Settings, SettingsView, UpdateStatusView,
     },
     scanner, startup, tray,
 };
@@ -27,8 +27,11 @@ pub async fn list_devices(state: TauriState<'_, SharedState>) -> Result<Vec<Devi
 }
 
 #[tauri::command]
-pub async fn refresh_devices(state: TauriState<'_, SharedState>) -> Result<Vec<Device>, String> {
-    discovery::discover_once(state.inner().clone(), None)
+pub async fn refresh_devices(
+    app: AppHandle,
+    state: TauriState<'_, SharedState>,
+) -> Result<Vec<Device>, String> {
+    discovery::discover_once(state.inner().clone(), Some(app))
         .await
         .map_err(to_string)?;
     db::list_devices(&state.pool).await.map_err(to_string)
@@ -113,6 +116,13 @@ pub async fn start_manual_scan(
 #[tauri::command]
 pub async fn get_scan_status(state: TauriState<'_, SharedState>) -> Result<ScanStatusView, String> {
     Ok(state.scan_status.read().await.clone())
+}
+
+#[tauri::command]
+pub async fn get_discovery_status(
+    state: TauriState<'_, SharedState>,
+) -> Result<DiscoveryStatusView, String> {
+    Ok(state.discovery_status.read().await.clone())
 }
 
 #[tauri::command]
@@ -298,6 +308,12 @@ pub async fn http_scan_status(
     AxumState(api): AxumState<ApiState>,
 ) -> Result<Json<ScanStatusView>, String> {
     Ok(Json(api.state.scan_status.read().await.clone()))
+}
+
+pub async fn http_discovery_status(
+    AxumState(api): AxumState<ApiState>,
+) -> Result<Json<DiscoveryStatusView>, String> {
+    Ok(Json(api.state.discovery_status.read().await.clone()))
 }
 
 pub async fn http_get_update_status(

@@ -101,6 +101,7 @@ fn main() {
             api::reorder_favorites,
             api::start_manual_scan,
             api::get_scan_status,
+            api::get_discovery_status,
             api::get_update_status,
             api::trigger_host_update,
             api::get_settings_view,

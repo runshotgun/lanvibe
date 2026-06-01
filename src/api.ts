@@ -1,5 +1,6 @@
 import type {
   Device,
+  DiscoveryStatus,
   ScanResult,
   ScanStatus,
   Service,
@@ -56,6 +57,12 @@ export async function listServices(): Promise<Service[]> {
 
 export async function getScanStatus(): Promise<ScanStatus> {
   return inTauri() ? invokeCommand<ScanStatus>("get_scan_status") : request<ScanStatus>("/api/scan/status");
+}
+
+export async function getDiscoveryStatus(): Promise<DiscoveryStatus> {
+  return inTauri()
+    ? invokeCommand<DiscoveryStatus>("get_discovery_status")
+    : request<DiscoveryStatus>("/api/devices/discovery-status");
 }
 
 export async function getUpdateStatus(): Promise<UpdateStatus> {

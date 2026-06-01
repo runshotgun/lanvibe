@@ -66,6 +66,15 @@ export interface ScanStatus {
   finishedAt?: string | null;
 }
 
+export type DiscoveryPhase = "idle" | "discovering";
+
+export interface DiscoveryStatus {
+  phase: DiscoveryPhase;
+  discoveredDevices: number;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
 export type UpdatePhase =
   | "idle"
   | "checking"

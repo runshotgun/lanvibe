@@ -195,6 +195,26 @@ impl Default for ScanStatusView {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DiscoveryStatusView {
+    pub phase: String,
+    pub discovered_devices: usize,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+}
+
+impl Default for DiscoveryStatusView {
+    fn default() -> Self {
+        Self {
+            phase: "idle".to_string(),
+            discovered_devices: 0,
+            started_at: None,
+            finished_at: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateStatusView {
     pub phase: String,
     pub current_version: String,

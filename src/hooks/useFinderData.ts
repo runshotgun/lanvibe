@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  getDiscoveryStatus,
   getSettings,
   getScanStatus,
   listDevices,
@@ -11,7 +12,14 @@ import {
   updateSettings,
 } from "@/api";
 import { emptySettings } from "@/lib/finder";
-import type { Device, ScanStatus, Service, Settings, SettingsView } from "@/types";
+import type {
+  Device,
+  DiscoveryStatus,
+  ScanStatus,
+  Service,
+  Settings,
+  SettingsView,
+} from "@/types";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -23,6 +31,7 @@ export interface FinderData {
   devicesLoaded: boolean;
   busy: string | null;
   scanStatus: ScanStatus;
+  discoveryStatus: DiscoveryStatus;
   error: string | null;
   refreshAll: () => Promise<void>;
   scan: () => Promise<void>;
@@ -48,6 +57,10 @@ export function useFinderData(): FinderData {
     selectedDevices: 0,
     scannedDevices: 0,
     discoveredServices: 0,
+  });
+  const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryStatus>({
+    phase: "idle",
+    discoveredDevices: 0,
   });
   const [error, setError] = useState<string | null>(null);
   const scanningRef = useRef(false);
@@ -94,6 +107,7 @@ export function useFinderData(): FinderData {
         const devicesPromise = listDevices();
         const settingsPromise = getSettings();
         const scanStatusPromise = getScanStatus();
+        const discoveryStatusPromise = getDiscoveryStatus();
 
         try {
           const nextServices = await servicesPromise;
@@ -105,10 +119,16 @@ export function useFinderData(): FinderData {
         }
 
         try {
-          const [nextDevices, nextSettings, nextScanStatus] = await Promise.all([
+          const [
+            nextDevices,
+            nextSettings,
+            nextScanStatus,
+            nextDiscoveryStatus,
+          ] = await Promise.all([
             devicesPromise,
             settingsPromise,
             scanStatusPromise,
+            discoveryStatusPromise,
           ]);
           setDevices(nextDevices);
           setDevicesLoaded(true);
@@ -118,6 +138,7 @@ export function useFinderData(): FinderData {
               ? current
               : nextScanStatus
           );
+          setDiscoveryStatus(nextDiscoveryStatus);
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : String(cause));
           setDevicesLoaded(true);
@@ -125,12 +146,19 @@ export function useFinderData(): FinderData {
         return;
       }
 
-      const [nextDevices, nextServices, nextSettings, nextScanStatus] =
+      const [
+        nextDevices,
+        nextServices,
+        nextSettings,
+        nextScanStatus,
+        nextDiscoveryStatus,
+      ] =
         await Promise.all([
           listDevices(),
           listServices(),
           getSettings(),
           getScanStatus(),
+          getDiscoveryStatus(),
         ]);
       setDevices(nextDevices);
       setDevicesLoaded(true);
@@ -144,6 +172,7 @@ export function useFinderData(): FinderData {
           ? current
           : nextScanStatus
       );
+      setDiscoveryStatus(nextDiscoveryStatus);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setDevicesLoaded(true);
@@ -157,6 +186,27 @@ export function useFinderData(): FinderData {
     const id = window.setInterval(() => void refreshAll(), POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [refreshAll]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+
+    const unlisteners: Array<() => void> = [];
+    void import("@tauri-apps/api/event").then(async ({ listen }) => {
+      unlisteners.push(
+        await listen<DiscoveryStatus>("discovery-status", (event) => {
+          setDiscoveryStatus(event.payload);
+        })
+      );
+      unlisteners.push(
+        await listen<Device[]>("devices-updated", (event) => {
+          setDevices(event.payload);
+          setDevicesLoaded(true);
+        })
+      );
+    });
+
+    return () => unlisteners.forEach((unlisten) => unlisten());
+  }, []);
 
   const runBusy = useCallback(
     async <T>(label: string, action: () => Promise<T>): Promise<T | undefined> => {
@@ -203,9 +253,29 @@ export function useFinderData(): FinderData {
 
   const discoverDevices = useCallback(async () => {
     await runBusy("devices", async () => {
-      const nextDevices = await refreshDevices();
-      setDevices(nextDevices);
-      setDevicesLoaded(true);
+      setDiscoveryStatus((current) => ({
+        ...current,
+        phase: "discovering",
+        startedAt:
+          current.phase === "discovering"
+            ? current.startedAt
+            : new Date().toISOString(),
+        finishedAt: null,
+      }));
+      try {
+        const nextDevices = await refreshDevices();
+        const nextDiscoveryStatus = await getDiscoveryStatus();
+        setDevices(nextDevices);
+        setDevicesLoaded(true);
+        setDiscoveryStatus(nextDiscoveryStatus);
+      } catch (cause) {
+        setDiscoveryStatus((current) => ({
+          ...current,
+          phase: "idle",
+          finishedAt: new Date().toISOString(),
+        }));
+        throw cause;
+      }
     });
   }, [runBusy]);
 
@@ -257,6 +327,7 @@ export function useFinderData(): FinderData {
     devicesLoaded,
     busy,
     scanStatus,
+    discoveryStatus,
     error,
     refreshAll,
     scan,

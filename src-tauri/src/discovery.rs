@@ -1,10 +1,12 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::Ipv4Addr,
+    sync::atomic::Ordering,
     time::Duration,
 };
 
 use anyhow::Result;
+use chrono::Utc;
 use futures::{stream, StreamExt};
 use get_if_addrs::{get_if_addrs, IfAddr};
 use regex::Regex;
@@ -17,7 +19,7 @@ use std::os::windows::process::CommandExt;
 use crate::{
     app_state::SharedState,
     db,
-    models::{Device, DiscoveredDevice},
+    models::{Device, DiscoveredDevice, DiscoveryStatusView},
     tray,
 };
 
@@ -38,6 +40,45 @@ pub fn spawn_loop(app: AppHandle, state: SharedState) {
 }
 
 pub async fn discover_once(state: SharedState, app: Option<AppHandle>) -> Result<Vec<Device>> {
+    if state
+        .discovery_running
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return db::list_devices(&state.pool).await;
+    }
+
+    let started_at = Utc::now().to_rfc3339();
+    publish_discovery_status(
+        app.as_ref(),
+        state.clone(),
+        DiscoveryStatusView {
+            phase: "discovering".to_string(),
+            discovered_devices: 0,
+            started_at: Some(started_at.clone()),
+            finished_at: None,
+        },
+    )
+    .await;
+
+    let result = discover_once_inner(state.clone(), app.clone()).await;
+    let discovered_devices = result.as_ref().map(|devices| devices.len()).unwrap_or(0);
+    publish_discovery_status(
+        app.as_ref(),
+        state.clone(),
+        DiscoveryStatusView {
+            phase: "idle".to_string(),
+            discovered_devices,
+            started_at: Some(started_at),
+            finished_at: Some(Utc::now().to_rfc3339()),
+        },
+    )
+    .await;
+    state.discovery_running.store(false, Ordering::Release);
+    result
+}
+
+async fn discover_once_inner(state: SharedState, app: Option<AppHandle>) -> Result<Vec<Device>> {
     let mut discovered = BTreeMap::<String, DiscoveredDevice>::new();
 
     for device in arp_devices().await? {
@@ -74,6 +115,17 @@ pub async fn discover_once(state: SharedState, app: Option<AppHandle>) -> Result
         let _ = tray::refresh(&app).await;
     }
     Ok(devices)
+}
+
+async fn publish_discovery_status(
+    app: Option<&AppHandle>,
+    state: SharedState,
+    status: DiscoveryStatusView,
+) {
+    *state.discovery_status.write().await = status.clone();
+    if let Some(app) = app {
+        let _ = app.emit("discovery-status", status);
+    }
 }
 
 pub fn dashboard_urls(port: u16, bind: &str) -> Vec<String> {
