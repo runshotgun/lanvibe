@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod api;
 mod app_state;
 mod db;
@@ -32,9 +34,7 @@ fn main() {
             app.manage(state.clone());
             let launch_at_startup =
                 tauri::async_runtime::block_on(state.current_settings()).launch_at_startup;
-            if let Err(error) = startup::apply_launch_at_startup(app.handle(), launch_at_startup) {
-                eprintln!("Unable to apply launch-at-startup setting: {error}");
-            }
+            let _ = startup::apply_launch_at_startup(app.handle(), launch_at_startup);
             tray::create(app.handle(), state.clone())?;
 
             // Keep the native popover window transparent from birth. The visible

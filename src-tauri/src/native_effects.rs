@@ -54,12 +54,10 @@ extern "system" {
 #[cfg(windows)]
 pub fn apply_popover_frost(window: &WebviewWindow) {
     let Some(set_window_composition_attribute) = composition_api() else {
-        eprintln!("[popover] acrylic: SetWindowCompositionAttribute unavailable");
         return;
     };
 
     let Ok(hwnd) = window.hwnd() else {
-        eprintln!("[popover] acrylic: window has no HWND");
         return;
     };
     let hwnd = hwnd.0 as isize;
@@ -104,14 +102,7 @@ pub fn apply_popover_frost(window: &WebviewWindow) {
             data: std::ptr::addr_of_mut!(fallback_policy).cast(),
             size_of_data: std::mem::size_of::<AccentPolicy>(),
         };
-        let fallback = unsafe { set_window_composition_attribute(hwnd, &mut fallback_data) } != 0;
-        if !fallback {
-            eprintln!("[popover] acrylic: SetWindowCompositionAttribute failed");
-        } else {
-            eprintln!("[popover] blur fallback applied");
-        }
-    } else {
-        eprintln!("[popover] acrylic blur applied");
+        let _ = unsafe { set_window_composition_attribute(hwnd, &mut fallback_data) };
     }
 }
 
