@@ -7,7 +7,10 @@ use sqlx::{
     Row, SqlitePool,
 };
 
-use crate::models::{Device, DiscoveredDevice, ProbeHit, Service, Settings};
+use crate::models::{
+    Device, DiscoveredDevice, ProbeHit, Service, Settings, DEFAULT_DASHBOARD_PORT,
+    LEGACY_DASHBOARD_PORT,
+};
 
 pub async fn connect(path: &Path) -> Result<SqlitePool> {
     let options = SqliteConnectOptions::new()
@@ -127,6 +130,18 @@ pub async fn load_settings(pool: &SqlitePool) -> Result<Settings> {
         .collect();
 
     let defaults = Settings::default();
+    let stored_dashboard_port = values
+        .get("dashboard_port")
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(defaults.dashboard_port);
+    let dashboard_port_migrated = parse_bool(&values, "dashboard_port_migrated_from_8765", false);
+    let dashboard_port =
+        if !dashboard_port_migrated && stored_dashboard_port == LEGACY_DASHBOARD_PORT {
+            DEFAULT_DASHBOARD_PORT
+        } else {
+            stored_dashboard_port
+        };
+
     let settings = Settings {
         auto_scan: parse_bool(&values, "auto_scan", defaults.auto_scan),
         manual_only: parse_bool(&values, "manual_only", defaults.manual_only),
@@ -150,14 +165,14 @@ pub async fn load_settings(pool: &SqlitePool) -> Result<Settings> {
             .get("dashboard_bind")
             .cloned()
             .unwrap_or(defaults.dashboard_bind),
-        dashboard_port: values
-            .get("dashboard_port")
-            .and_then(|value| value.parse::<u16>().ok())
-            .unwrap_or(defaults.dashboard_port),
+        dashboard_port,
     }
     .normalized();
 
     save_settings(pool, &settings).await?;
+    if !dashboard_port_migrated && stored_dashboard_port == LEGACY_DASHBOARD_PORT {
+        save_setting(pool, "dashboard_port_migrated_from_8765", "true").await?;
+    }
     Ok(settings)
 }
 
@@ -187,17 +202,23 @@ pub async fn save_settings(pool: &SqlitePool, settings: &Settings) -> Result<()>
     ];
 
     for (key, value) in pairs {
-        sqlx::query(
-            r#"
-            INSERT INTO settings(key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            "#,
-        )
-        .bind(key)
-        .bind(value)
-        .execute(pool)
-        .await?;
+        save_setting(pool, key, &value).await?;
     }
+
+    Ok(())
+}
+
+async fn save_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO settings(key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        "#,
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
@@ -310,6 +331,32 @@ pub async fn list_devices(pool: &SqlitePool) -> Result<Vec<Device>> {
             .fetch_all(pool)
             .await?;
     Ok(rows.into_iter().map(device_from_row).collect())
+}
+
+pub async fn delete_unselected_devices_without_services(
+    pool: &SqlitePool,
+    ids: &[String],
+) -> Result<()> {
+    for id in ids {
+        sqlx::query(
+            r#"
+            DELETE FROM devices
+            WHERE id = ?
+              AND selected = 0
+              AND NOT EXISTS (
+                SELECT 1 FROM services WHERE services.device_id = devices.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM favorites WHERE favorites.service_key LIKE devices.id || ':%'
+              )
+            "#,
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+    }
+
+    Ok(())
 }
 
 pub async fn list_favorite_keys(pool: &SqlitePool) -> Result<Vec<String>> {

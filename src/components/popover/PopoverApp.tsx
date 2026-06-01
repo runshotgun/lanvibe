@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Maximize2, RefreshCw, Star, X } from "lucide-react";
 
-import { closePopover, openMainWindow, openService } from "@/api";
+import { closePopover, openMainWindow, openService, resizePopover } from "@/api";
 import { lanvibeLogoUrl } from "@/brand";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FavoriteTile, serviceOrigin } from "@/components/favorites/FavoriteTile";
@@ -39,6 +39,10 @@ export function PopoverApp() {
     [favoriteServices]
   );
   const favicons = useFavicons(origins);
+
+  useEffect(() => {
+    void resizePopover(favoriteServices.length, loading);
+  }, [favoriteServices.length, loading]);
 
   const openFavorite = async (service: Service) => {
     try {

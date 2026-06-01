@@ -9,7 +9,7 @@ A small cross-platform utility for finding HTTP and HTTPS web interfaces on sele
 - Scans all TCP ports on selected devices for HTTP/HTTPS services.
 - Keeps inactive services visible for a configurable retention window, defaulting to 30 days.
 - Shows a Tauri tray/status popup on desktop.
-- Hosts the same dashboard on the LAN, defaulting to `http://<lan-ip>:8765`.
+- Hosts the same dashboard on the LAN, defaulting to `http://<lan-ip>:41580`.
 
 ## Development
 

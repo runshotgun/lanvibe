@@ -2,6 +2,9 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use serde::{Deserialize, Serialize};
 
+pub const DEFAULT_DASHBOARD_PORT: u16 = 41580;
+pub const LEGACY_DASHBOARD_PORT: u16 = 8765;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Device {
@@ -67,7 +70,7 @@ impl Default for Settings {
             connect_timeout_ms: 450,
             http_timeout_ms: 1200,
             dashboard_bind: "0.0.0.0".to_string(),
-            dashboard_port: 8765,
+            dashboard_port: DEFAULT_DASHBOARD_PORT,
         }
     }
 }
@@ -178,6 +181,34 @@ impl Default for ScanStatusView {
             scanned_devices: 0,
             discovered_services: 0,
             current_device_ip: None,
+            started_at: None,
+            finished_at: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStatusView {
+    pub phase: String,
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub message: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+}
+
+impl Default for UpdateStatusView {
+    fn default() -> Self {
+        Self {
+            phase: "idle".to_string(),
+            current_version: env!("CARGO_PKG_VERSION").to_string(),
+            latest_version: None,
+            downloaded_bytes: 0,
+            total_bytes: None,
+            message: "Ready to check for updates.".to_string(),
             started_at: None,
             finished_at: None,
         }

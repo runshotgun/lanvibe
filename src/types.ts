@@ -65,3 +65,23 @@ export interface ScanStatus {
   startedAt?: string | null;
   finishedAt?: string | null;
 }
+
+export type UpdatePhase =
+  | "idle"
+  | "checking"
+  | "current"
+  | "downloading"
+  | "installing"
+  | "restarting"
+  | "error";
+
+export interface UpdateStatus {
+  phase: UpdatePhase;
+  currentVersion: string;
+  latestVersion?: string | null;
+  downloadedBytes: number;
+  totalBytes?: number | null;
+  message: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}

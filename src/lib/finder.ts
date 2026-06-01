@@ -80,5 +80,5 @@ export const emptySettings: Settings = {
   connectTimeoutMs: 450,
   httpTimeoutMs: 1200,
   dashboardBind: "0.0.0.0",
-  dashboardPort: 8765,
+  dashboardPort: 41580,
 };

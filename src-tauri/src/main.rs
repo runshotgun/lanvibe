@@ -43,6 +43,7 @@ fn main() {
             if let Some(window) = app.get_webview_window("popover") {
                 let _ = window.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
                 let _ = window.set_shadow(false);
+                let _ = window.set_decorations(false);
                 if let Some(icon) = tray::app_icon() {
                     let _ = window.set_icon(icon);
                 }
@@ -83,6 +84,11 @@ fn main() {
             WindowEvent::Focused(false) if window.label() == "popover" => {
                 tray::hide_popover_on_blur(window.app_handle());
             }
+            WindowEvent::ScaleFactorChanged { .. } if window.label() == "popover" => {
+                if let Some(popover) = window.app_handle().get_webview_window("popover") {
+                    native_effects::apply_popover_shape(&popover);
+                }
+            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
@@ -94,12 +100,15 @@ fn main() {
             api::set_favorite,
             api::start_manual_scan,
             api::get_scan_status,
+            api::get_update_status,
+            api::trigger_host_update,
             api::get_settings_view,
             api::update_settings,
             api::open_url,
             api::get_favicon,
             api::close_popover,
-            api::open_main_window
+            api::open_main_window,
+            api::resize_popover
         ])
         .run(tauri::generate_context!())
         .expect("failed to run LANVibe");

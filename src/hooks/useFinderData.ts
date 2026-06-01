@@ -37,7 +37,7 @@ export function useFinderData(): FinderData {
   const [services, setServices] = useState<Service[]>([]);
   const [settingsView, setSettingsView] = useState<SettingsView>({
     settings: emptySettings,
-    actualDashboardPort: 8765,
+    actualDashboardPort: emptySettings.dashboardPort,
     dashboardUrls: [],
   });
   const [loading, setLoading] = useState(true);

@@ -1,4 +1,12 @@
-import type { Device, ScanResult, ScanStatus, Service, Settings, SettingsView } from "./types";
+import type {
+  Device,
+  ScanResult,
+  ScanStatus,
+  Service,
+  Settings,
+  SettingsView,
+  UpdateStatus,
+} from "./types";
 
 declare global {
   interface Window {
@@ -48,6 +56,18 @@ export async function listServices(): Promise<Service[]> {
 
 export async function getScanStatus(): Promise<ScanStatus> {
   return inTauri() ? invokeCommand<ScanStatus>("get_scan_status") : request<ScanStatus>("/api/scan/status");
+}
+
+export async function getUpdateStatus(): Promise<UpdateStatus> {
+  return inTauri()
+    ? invokeCommand<UpdateStatus>("get_update_status")
+    : request<UpdateStatus>("/api/update/status");
+}
+
+export async function triggerHostUpdate(): Promise<UpdateStatus> {
+  return inTauri()
+    ? invokeCommand<UpdateStatus>("trigger_host_update")
+    : request<UpdateStatus>("/api/update", { method: "POST" });
 }
 
 export async function listFavorites(): Promise<string[]> {
@@ -120,6 +140,12 @@ export async function closePopover(): Promise<void> {
 export async function openMainWindow(): Promise<void> {
   if (inTauri()) {
     await invokeCommand<void>("open_main_window");
+  }
+}
+
+export async function resizePopover(favoriteCount: number, loading: boolean): Promise<void> {
+  if (inTauri()) {
+    await invokeCommand<void>("resize_popover", { favoriteCount, loading });
   }
 }
 

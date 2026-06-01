@@ -19,7 +19,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" href="/lanvibe-icon-32.png" />
-    <link rel="apple-touch-icon" href="/lanvibe-icon-128.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/lanvibe-apple-touch-icon.png" />
     <script>
       (() => {
         const params = new URLSearchParams(window.location.search);
@@ -66,13 +66,14 @@
       }
 
       html[data-window="popover"] .popover-surface {
+        border-radius: 8px;
+        clip-path: inset(0 round 8px);
         background:
-          linear-gradient(180deg, rgb(240 244 242 / 0.12), rgb(240 244 242 / 0.02) 36%, rgb(240 244 242 / 0)),
-          linear-gradient(rgb(20 18 4 / 0.76), rgb(20 18 4 / 0.76)),
-          rgb(20 18 4 / 0.34);
-        background-color: rgb(20 18 4 / 0.76);
-        -webkit-backdrop-filter: blur(28px) saturate(175%);
-        backdrop-filter: blur(28px) saturate(175%);
+          linear-gradient(180deg, rgb(240 244 242 / 0.08), rgb(240 244 242 / 0.016) 36%, rgb(240 244 242 / 0)),
+          rgb(20 18 4 / 0.14);
+        background-color: rgb(20 18 4 / 0.14);
+        -webkit-backdrop-filter: blur(34px) saturate(190%) contrast(1.06);
+        backdrop-filter: blur(34px) saturate(190%) contrast(1.06);
         transition: none !important;
       }
     </style>

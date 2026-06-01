@@ -10,33 +10,22 @@ export function StatusDot({
   className?: string;
 }) {
   const tone = loading ? "loading" : active ? "active" : "inactive";
-  const colorClass =
-    tone === "loading"
-      ? "bg-[var(--status-loading)]"
-      : tone === "active"
-        ? "bg-[var(--status-active)]"
-        : "bg-[var(--status-inactive)]";
 
   return (
     <span
-      className={cn("relative flex size-2.5 shrink-0", className)}
+      className={cn(
+        "status-dot relative flex size-4 shrink-0 items-center justify-center",
+        className
+      )}
+      data-tone={tone}
       aria-hidden="true"
     >
-      {tone !== "inactive" ? (
+      {tone === "active" ? (
         <span
-          className={cn(
-            "absolute inline-flex size-full rounded-full opacity-60",
-            tone === "loading" ? "animate-pulse" : "animate-ping",
-            colorClass
-          )}
+          className="status-dot-pulse absolute inline-flex size-full animate-ping rounded-full opacity-55"
         />
       ) : null}
-      <span
-        className={cn(
-          "relative inline-flex size-2.5 rounded-full",
-          colorClass
-        )}
-      />
+      <span className="status-dot-core relative inline-flex size-3 rounded-full" />
     </span>
   );
 }

@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 use anyhow::Result;
 use sqlx::SqlitePool;
@@ -8,7 +11,7 @@ use tokio::sync::RwLock;
 use crate::{
     db, discovery,
     favicon::FaviconStore,
-    models::{ScanStatusView, Settings},
+    models::{ScanStatusView, Settings, UpdateStatusView},
 };
 
 pub struct AppState {
@@ -16,6 +19,8 @@ pub struct AppState {
     pub settings: RwLock<Settings>,
     pub dashboard_port: RwLock<u16>,
     pub scan_status: RwLock<ScanStatusView>,
+    pub update_status: RwLock<UpdateStatusView>,
+    pub update_running: AtomicBool,
     pub favicons: FaviconStore,
 }
 
@@ -28,6 +33,8 @@ impl AppState {
         Ok(Self {
             dashboard_port: RwLock::new(settings.dashboard_port),
             scan_status: RwLock::new(ScanStatusView::default()),
+            update_status: RwLock::new(UpdateStatusView::default()),
+            update_running: AtomicBool::new(false),
             settings: RwLock::new(settings),
             favicons: FaviconStore::new(),
             pool,

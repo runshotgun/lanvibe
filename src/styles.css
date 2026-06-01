@@ -165,9 +165,12 @@
   --warning: var(--color-pitch-black-500);
   --warning-foreground: var(--color-pitch-black-950);
 
-  --status-active: var(--success);
-  --status-loading: var(--warning);
-  --status-inactive: #d73535;
+  --status-active: var(--color-cerulean-600);
+  --status-active-contrast: var(--color-cerulean-50);
+  --status-loading: var(--color-cream-600);
+  --status-loading-contrast: var(--color-pitch-black-950);
+  --status-inactive: var(--color-sandy-brown-600);
+  --status-inactive-contrast: var(--color-sandy-brown-50);
 
   --border: color-mix(in srgb, var(--color-ash-grey-300) 62%, white);
   --input: color-mix(in srgb, var(--color-ash-grey-200) 70%, white);
@@ -219,12 +222,14 @@
   --tactile-hover: linear-gradient(rgba(13, 13, 13, 0.05), rgba(13, 13, 13, 0.05));
 
   /* Tray popover surface: instant frosted tint from first paint. */
-  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 28%, transparent);
-  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 72%, transparent);
+  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 8%, transparent);
+  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 16%, transparent);
   --popover-surface-border: color-mix(in srgb, var(--color-ash-grey-50) 20%, transparent);
-  --popover-frost-highlight: color-mix(in srgb, white 34%, transparent);
-  --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-600) 14%, transparent);
-  --popover-frost-grain: color-mix(in srgb, white 9%, transparent);
+  --popover-frost-highlight: color-mix(in srgb, white 24%, transparent);
+  --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-600) 8%, transparent);
+  --popover-frost-grain: color-mix(in srgb, white 7%, transparent);
+  --popover-corner-radius: 8px;
+  --popover-border-inset: 0px;
   --shadow-color: 211 49% 7%;
   --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.07),
     0 8px 22px -10px hsl(var(--shadow-color) / 0.14);
@@ -271,9 +276,12 @@
   --warning: var(--color-pitch-black-400);
   --warning-foreground: var(--color-pitch-black-950);
 
-  --status-active: var(--success);
-  --status-loading: var(--warning);
-  --status-inactive: #ff5a52;
+  --status-active: var(--color-cerulean-300);
+  --status-active-contrast: var(--color-cerulean-950);
+  --status-loading: var(--color-cream-400);
+  --status-loading-contrast: var(--color-pitch-black-950);
+  --status-inactive: var(--color-sandy-brown-400);
+  --status-inactive-contrast: var(--color-sandy-brown-950);
 
   --border: color-mix(in srgb, var(--color-ash-grey-300) 16%, transparent);
   --input: color-mix(in srgb, var(--color-ash-grey-300) 14%, transparent);
@@ -319,12 +327,14 @@
   --tactile-hover: linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08));
 
   /* Darker, low-opacity surface drawn by CSS immediately. */
-  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 34%, transparent);
-  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 76%, transparent);
+  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 8%, transparent);
+  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 16%, transparent);
   --popover-surface-border: color-mix(in srgb, var(--color-ash-grey-200) 14%, transparent);
-  --popover-frost-highlight: color-mix(in srgb, var(--color-ash-grey-50) 13%, transparent);
-  --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-950) 24%, transparent);
+  --popover-frost-highlight: color-mix(in srgb, var(--color-ash-grey-50) 10%, transparent);
+  --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-950) 10%, transparent);
   --popover-frost-grain: color-mix(in srgb, var(--color-ash-grey-50) 5%, transparent);
+  --popover-corner-radius: 8px;
+  --popover-border-inset: 0px;
   --shadow-color: 211 50% 4%;
   --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.4),
     0 8px 20px -10px hsl(var(--shadow-color) / 0.6);
@@ -531,17 +541,18 @@
   .popover-surface {
     isolation: isolate;
     box-sizing: border-box;
-    border-radius: 8px;
+    border-radius: var(--popover-corner-radius);
+    clip-path: inset(0 round var(--popover-corner-radius));
     background:
       linear-gradient(
         to bottom,
         var(--popover-frost-highlight),
-        color-mix(in srgb, var(--color-ash-grey-50) 4%, transparent) 44%,
+        color-mix(in srgb, var(--color-ash-grey-50) 3%, transparent) 44%,
         transparent 72%
       ),
       linear-gradient(
         135deg,
-        color-mix(in srgb, var(--color-dark-khaki-300) 9%, transparent),
+        color-mix(in srgb, var(--color-dark-khaki-300) 5%, transparent),
         transparent 34%,
         var(--popover-frost-shade) 100%
       ),
@@ -576,11 +587,11 @@
   .popover-surface::after {
     content: "";
     position: absolute;
-    inset: 0;
+    inset: var(--popover-border-inset);
     z-index: 2;
     pointer-events: none;
     border: 1px solid var(--popover-surface-border);
-    border-radius: inherit;
+    border-radius: calc(var(--popover-corner-radius) - var(--popover-border-inset));
   }
 
   .popover-surface > * {
@@ -605,6 +616,67 @@
   }
   .shadow-raised {
     box-shadow: var(--shadow-raised);
+  }
+
+  .status-dot {
+    --status-dot-color: var(--status-inactive);
+    --status-dot-contrast: var(--status-inactive-contrast);
+    color: var(--status-dot-color);
+  }
+
+  .status-dot[data-tone="active"] {
+    --status-dot-color: var(--status-active);
+    --status-dot-contrast: var(--status-active-contrast);
+  }
+
+  .status-dot[data-tone="loading"] {
+    --status-dot-color: var(--status-loading);
+    --status-dot-contrast: var(--status-loading-contrast);
+  }
+
+  .status-dot-core {
+    background: var(--status-dot-color);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--status-dot-color) 22%, transparent),
+      0 0 14px color-mix(in srgb, var(--status-dot-color) 70%, transparent);
+  }
+
+  .status-dot-core::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: inherit;
+    background: var(--status-dot-contrast);
+    opacity: 0.88;
+  }
+
+  .status-dot[data-tone="inactive"] .status-dot-core {
+    border-radius: 0.22rem;
+    transform: rotate(45deg) scale(0.82);
+  }
+
+  .status-dot[data-tone="loading"] .status-dot-core {
+    border-radius: 9999px;
+    background:
+      conic-gradient(
+        from 0deg,
+        var(--status-dot-color),
+        var(--status-dot-color) 42%,
+        color-mix(in srgb, var(--status-dot-color) 18%, transparent) 43%,
+        color-mix(in srgb, var(--status-dot-color) 18%, transparent)
+      );
+    animation: spin 1s linear infinite;
+  }
+
+  .status-dot[data-tone="loading"] .status-dot-core::after {
+    inset: 4px;
+    background: var(--background);
+    opacity: 1;
+  }
+
+  .status-dot-pulse {
+    background: var(--status-dot-color);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--status-dot-color) 85%, transparent);
   }
 
   .mobile-status-fade,

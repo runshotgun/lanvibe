@@ -10,13 +10,21 @@ use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, PhysicalPosition, Position, Rect, WebviewWindow,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Rect, Size,
+    WebviewWindow,
 };
 
 use crate::{app_state::AppState, db};
 
 const TRAY_ID: &str = "main-tray";
 const WINDOW_MARGIN: i32 = 12;
+const POPOVER_WIDTH: u32 = 384;
+const POPOVER_MIN_HEIGHT: u32 = 228;
+const POPOVER_EMPTY_HEIGHT: u32 = 340;
+const POPOVER_MAX_HEIGHT: u32 = 820;
+const POPOVER_HEADER_HEIGHT: u32 = 52;
+const POPOVER_CONTENT_PADDING: u32 = 20;
+const POPOVER_TILE_HEIGHT: u32 = 102;
 /// When the popover loses focus from the very click that hit the tray icon, the
 /// blur-hide and the tray toggle race. Within this window we treat a toggle as a
 /// "close" so the popover doesn't immediately reopen.
@@ -174,9 +182,12 @@ pub fn toggle_popover(app: &AppHandle) {
     // reposition + focus. Position before show as a fallback for cases where
     // the platform has hidden or recreated the WebView.
     let _ = window.set_shadow(false);
+    let _ = window.set_decorations(false);
     crate::native_effects::apply_popover_frost(&window);
+    sync_popover_size_from_favorites(app, &window);
     let _ = position_window_near_tray(app, &window);
     let _ = window.show();
+    crate::native_effects::apply_popover_shape(&window);
     let _ = window.set_focus();
     POPOVER_OPEN.store(true, Ordering::SeqCst);
     if let Ok(mut shown) = LAST_POPOVER_SHOW.get_or_init(|| Mutex::new(None)).lock() {
@@ -190,6 +201,16 @@ pub fn toggle_popover(app: &AppHandle) {
 pub fn close_popover(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("popover") {
         hide_popover_window(&window);
+    }
+}
+
+pub fn resize_popover(app: &AppHandle, favorite_count: usize, loading: bool) {
+    if let Some(window) = app.get_webview_window("popover") {
+        let _ = set_popover_size(&window, favorite_count, loading);
+        if POPOVER_OPEN.load(Ordering::SeqCst) {
+            let _ = position_window_near_tray(app, &window);
+            crate::native_effects::apply_popover_shape(&window);
+        }
     }
 }
 
@@ -232,6 +253,38 @@ fn park_popover_offscreen(window: &WebviewWindow) {
     )));
 }
 
+fn sync_popover_size_from_favorites(app: &AppHandle, window: &WebviewWindow) {
+    let state = app.state::<Arc<AppState>>();
+    let count = tauri::async_runtime::block_on(async { favorite_count(state.inner()).await });
+    let _ = set_popover_size(window, count, false);
+}
+
+fn set_popover_size(
+    window: &WebviewWindow,
+    favorite_count: usize,
+    loading: bool,
+) -> tauri::Result<()> {
+    let height = popover_height(favorite_count, loading);
+    window.set_size(Size::Logical(LogicalSize::new(
+        POPOVER_WIDTH as f64,
+        height as f64,
+    )))?;
+    crate::native_effects::apply_popover_frost(window);
+    Ok(())
+}
+
+fn popover_height(favorite_count: usize, loading: bool) -> u32 {
+    if favorite_count == 0 && !loading {
+        return POPOVER_EMPTY_HEIGHT;
+    }
+
+    let visible_count = if loading { 6 } else { favorite_count.max(1) };
+    let rows = visible_count.div_ceil(2) as u32;
+    let grid_height = rows * POPOVER_TILE_HEIGHT;
+    let height = POPOVER_HEADER_HEIGHT + POPOVER_CONTENT_PADDING + grid_height;
+    height.clamp(POPOVER_MIN_HEIGHT, POPOVER_MAX_HEIGHT)
+}
+
 fn recently_hidden() -> bool {
     LAST_POPOVER_HIDE
         .get_or_init(|| Mutex::new(None))
@@ -244,8 +297,10 @@ fn recently_hidden() -> bool {
 
 pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
         let _ = window.unminimize();
+        let _ = window.unmaximize();
+        let _ = position_window_near_tray(app, &window);
+        let _ = window.show();
         let _ = window.set_focus();
     }
 }
@@ -341,7 +396,11 @@ fn position_window_near_tray(app: &AppHandle, window: &WebviewWindow) -> tauri::
     x = clamp_to_work_area(x, window_width, work_left, work_right);
     y = clamp_to_work_area(y, window_height, work_top, work_bottom);
 
-    window.set_position(Position::Physical(PhysicalPosition::new(x, y)))
+    let result = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+    if result.is_ok() && window.label() == "popover" {
+        crate::native_effects::apply_popover_shape(window);
+    }
+    result
 }
 
 fn clamp_to_work_area(position: i32, size: i32, min: i32, max: i32) -> i32 {

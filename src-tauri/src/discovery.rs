@@ -11,6 +11,9 @@ use regex::Regex;
 use tauri::{AppHandle, Emitter};
 use tokio::{process::Command, time};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use crate::{
     app_state::SharedState,
     db,
@@ -63,6 +66,7 @@ pub async fn discover_once(state: SharedState, app: Option<AppHandle>) -> Result
         }
         saved.push(db::upsert_device(&state.pool, &device).await?);
     }
+    prune_unusable_device_records(&state).await?;
 
     let devices = db::list_devices(&state.pool).await?;
     if let Some(app) = app {
@@ -115,6 +119,12 @@ fn usable_interface_ipv4_addresses() -> Vec<Ipv4Addr> {
         })
         .unwrap_or_default();
 
+    if let Some(with_neighbors) = interface_ips_with_dynamic_neighbors() {
+        if !with_neighbors.is_empty() {
+            addresses.retain(|ip| with_neighbors.contains(ip));
+        }
+    }
+
     addresses.sort_by_key(|ip| {
         let octets = ip.octets();
         match octets {
@@ -151,16 +161,34 @@ fn parse_arp_output(text: &str) -> Vec<DiscoveredDevice> {
     let ip_re = Regex::new(r"(?P<ip>(?:\d{1,3}\.){3}\d{1,3})").expect("valid ip regex");
     let mac_re = Regex::new(r"(?i)(?P<mac>[0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2})")
         .expect("valid mac regex");
+    let interface_re =
+        Regex::new(r"(?i)^interface:\s+(?P<ip>(?:\d{1,3}\.){3}\d{1,3})").expect("valid regex");
+    let usable_interfaces = usable_interface_ipv4_addresses()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut current_interface_allowed: Option<bool> = None;
 
     text.lines()
-        .filter_map(|line| {
+        .filter_map(move |line| {
+            if let Some(interface) = interface_re.captures(line) {
+                current_interface_allowed = interface
+                    .name("ip")
+                    .and_then(|value| value.as_str().parse::<Ipv4Addr>().ok())
+                    .map(|ip| usable_interfaces.is_empty() || usable_interfaces.contains(&ip));
+                return None;
+            }
+
+            if current_interface_allowed == Some(false) {
+                return None;
+            }
+
             let ip = ip_re.captures(line)?.name("ip")?.as_str().to_string();
             let mac = mac_re
                 .captures(line)
                 .and_then(|captures| captures.name("mac"))
                 .map(|value| value.as_str().replace('-', ":").to_ascii_lowercase());
             let parsed_ip = ip.parse::<Ipv4Addr>().ok()?;
-            if !is_private_lan(parsed_ip) {
+            if !is_discoverable_device_ip(parsed_ip) || is_unusable_mac(mac.as_deref()) {
                 return None;
             }
             Some(DiscoveredDevice {
@@ -283,6 +311,57 @@ fn is_private_lan(ip: Ipv4Addr) -> bool {
     ip.is_private() || ip.octets()[0] == 169 && ip.octets()[1] == 254
 }
 
+fn is_discoverable_device_ip(ip: Ipv4Addr) -> bool {
+    let octets = ip.octets();
+    is_private_lan(ip)
+        && !ip.is_loopback()
+        && !ip.is_link_local()
+        && !ip.is_multicast()
+        && octets != [0, 0, 0, 0]
+        && octets != [255, 255, 255, 255]
+        && octets[3] != 0
+        && octets[3] != 255
+}
+
+fn is_unusable_mac(mac: Option<&str>) -> bool {
+    let Some(mac) = mac else {
+        return false;
+    };
+    let normalized = mac.to_ascii_lowercase().replace('-', ":");
+    normalized == "ff:ff:ff:ff:ff:ff"
+        || normalized.starts_with("01:00:5e:")
+        || normalized.starts_with("33:33:")
+}
+
+fn is_on_usable_local_subnet(ip: Ipv4Addr) -> bool {
+    let octets = ip.octets();
+    usable_interface_ipv4_addresses()
+        .into_iter()
+        .map(|local| local.octets())
+        .any(|local| local[0..3] == octets[0..3])
+}
+
+async fn prune_unusable_device_records(state: &SharedState) -> Result<()> {
+    let devices = db::list_devices(&state.pool).await?;
+    let ids = devices
+        .into_iter()
+        .filter_map(|device| {
+            let ip = device.ip.parse::<Ipv4Addr>().ok()?;
+            let invalid_ip = !is_discoverable_device_ip(ip);
+            let stale_off_subnet = !is_on_usable_local_subnet(ip);
+            let unusable_mac = is_unusable_mac(device.mac.as_deref());
+
+            if invalid_ip || stale_off_subnet || unusable_mac {
+                Some(device.id)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    db::delete_unselected_devices_without_services(&state.pool, &ids).await
+}
+
 fn is_usable_lan_interface(name: &str, ip: Ipv4Addr) -> bool {
     if !ip.is_private() || ip.is_loopback() || ip.is_link_local() {
         return false;
@@ -302,6 +381,48 @@ fn is_usable_lan_interface(name: &str, ip: Ipv4Addr) -> bool {
     ]
     .iter()
     .any(|needle| name.contains(needle))
+}
+
+#[cfg(windows)]
+fn interface_ips_with_dynamic_neighbors() -> Option<BTreeSet<Ipv4Addr>> {
+    let mut command = std::process::Command::new("arp");
+    command.creation_flags(CREATE_NO_WINDOW);
+    let output = command.arg("-a").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(parse_dynamic_arp_interface_ips(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
+#[cfg(not(windows))]
+fn interface_ips_with_dynamic_neighbors() -> Option<BTreeSet<Ipv4Addr>> {
+    None
+}
+
+fn parse_dynamic_arp_interface_ips(text: &str) -> BTreeSet<Ipv4Addr> {
+    let interface_re =
+        Regex::new(r"(?i)^interface:\s+(?P<ip>(?:\d{1,3}\.){3}\d{1,3})").expect("valid regex");
+    let mut current = None;
+    let mut interfaces = BTreeSet::new();
+
+    for line in text.lines() {
+        if let Some(interface) = interface_re.captures(line) {
+            current = interface
+                .name("ip")
+                .and_then(|value| value.as_str().parse::<Ipv4Addr>().ok());
+            continue;
+        }
+
+        if line.to_ascii_lowercase().contains(" dynamic") {
+            if let Some(ip) = current {
+                interfaces.insert(ip);
+            }
+        }
+    }
+
+    interfaces
 }
 
 fn infer_vendor(mac: Option<&str>) -> Option<&'static str> {
@@ -330,7 +451,10 @@ fn hide_tokio_command_window(_command: &mut Command) {}
 mod tests {
     use std::net::Ipv4Addr;
 
-    use super::{is_usable_lan_interface, parse_arp_output};
+    use super::{
+        is_discoverable_device_ip, is_unusable_mac, is_usable_lan_interface, parse_arp_output,
+        parse_dynamic_arp_interface_ips,
+    };
 
     #[test]
     fn parses_windows_arp_lines() {
@@ -339,6 +463,31 @@ mod tests {
         );
         assert_eq!(devices[0].ip, "192.168.1.10");
         assert_eq!(devices[0].mac.as_deref(), Some("aa:bb:cc:dd:ee:ff"));
+    }
+
+    #[test]
+    fn filters_broadcast_arp_entries() {
+        let devices = parse_arp_output(
+            "  Internet Address      Physical Address      Type\n  192.168.1.255         ff-ff-ff-ff-ff-ff     static",
+        );
+        assert!(devices.is_empty());
+        assert!(!is_discoverable_device_ip(Ipv4Addr::new(192, 168, 1, 255)));
+        assert!(is_unusable_mac(Some("ff-ff-ff-ff-ff-ff")));
+    }
+
+    #[test]
+    fn detects_windows_interfaces_with_dynamic_neighbors() {
+        let interfaces = parse_dynamic_arp_interface_ips(
+            r#"
+Interface: 172.22.16.1 --- 0x18
+  224.0.0.251           01-00-5e-00-00-fb     static
+
+Interface: 192.168.1.100 --- 0x19
+  192.168.1.1           d0-21-f9-70-73-35     dynamic
+"#,
+        );
+        assert!(interfaces.contains(&Ipv4Addr::new(192, 168, 1, 100)));
+        assert!(!interfaces.contains(&Ipv4Addr::new(172, 22, 16, 1)));
     }
 
     #[test]

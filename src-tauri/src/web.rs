@@ -35,6 +35,8 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
         .route("/api/favicon", get(api::http_get_favicon))
         .route("/api/scan", post(api::http_scan))
         .route("/api/scan/status", get(api::http_scan_status))
+        .route("/api/update", post(api::http_trigger_host_update))
+        .route("/api/update/status", get(api::http_get_update_status))
         .route(
             "/api/settings",
             get(api::http_get_settings).patch(api::http_update_settings),
