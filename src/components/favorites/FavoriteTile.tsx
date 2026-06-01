@@ -1,5 +1,5 @@
-import { type MouseEvent, type PointerEvent, type ReactNode, useState } from "react";
-import { Globe, X } from "lucide-react";
+import { type MouseEvent, type ReactNode, useState } from "react";
+import { Globe } from "lucide-react";
 
 import { inTauri } from "@/api";
 import { StatusDot } from "@/components/common/StatusDot";
@@ -19,7 +19,6 @@ export function FavoriteTile({
   loading = false,
   editing = false,
   onOpen,
-  onRemove,
 }: {
   service: Service;
   devices: Device[];
@@ -28,7 +27,6 @@ export function FavoriteTile({
   loading?: boolean;
   editing?: boolean;
   onOpen: (service: Service) => void;
-  onRemove?: (service: Service) => void;
 }) {
   const primary = service.title?.trim() || serviceHostName(service, devices);
   const secondary = serviceLabel(service, devices);
@@ -39,11 +37,6 @@ export function FavoriteTile({
   );
 
   if (editing) {
-    // Stop drag from starting when tapping the remove badge.
-    const handleRemovePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-    };
-
     return (
       <div
         className={cn(
@@ -52,17 +45,6 @@ export function FavoriteTile({
         )}
         aria-label={`Reorder ${primary}`}
       >
-        {onRemove ? (
-          <button
-            type="button"
-            onPointerDown={handleRemovePointerDown}
-            onClick={() => onRemove(service)}
-            className="absolute -left-1.5 -top-1.5 z-10 grid size-6 place-items-center rounded-full border border-border bg-popover text-destructive shadow-soft transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`Remove ${primary} from favorites`}
-          >
-            <X className="size-3.5" strokeWidth={2.5} />
-          </button>
-        ) : null}
         <TileContent
           favicon={favicon}
           primary={primary}

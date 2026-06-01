@@ -252,7 +252,6 @@ export function FavoritesView({
             devices={displayDevices}
             favicons={favicons}
             onReorder={onReorder}
-            onRemove={onFavorite}
             onOpen={openFavorite}
           />
         ) : filteredRows.length === 0 ? (

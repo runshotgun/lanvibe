@@ -17,7 +17,6 @@ export function ReorderableFavoritesGrid({
   favicons,
   compact = false,
   onReorder,
-  onRemove,
   onOpen,
 }: {
   services: Service[];
@@ -25,7 +24,6 @@ export function ReorderableFavoritesGrid({
   favicons: Record<string, string | null | undefined>;
   compact?: boolean;
   onReorder: (orderedKeys: string[]) => void;
-  onRemove?: (service: Service) => void;
   onOpen: (service: Service) => void;
 }) {
   const handleSortEnd = (oldIndex: number, newIndex: number) => {
@@ -50,7 +48,6 @@ export function ReorderableFavoritesGrid({
               compact={compact}
               editing
               onOpen={onOpen}
-              onRemove={onRemove}
             />
           </div>
         </SortableItem>
