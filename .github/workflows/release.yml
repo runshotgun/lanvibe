@@ -63,6 +63,6 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "LANVibe ${{ github.ref_name }}"
           releaseBody: "Signed LANVibe desktop release."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

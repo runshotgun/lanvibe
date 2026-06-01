@@ -52,6 +52,7 @@ git push origin main --tags
 
 Windows and macOS OS-level code signing/notarization are separate from Tauri updater signing. The updater
 signature proves the update came from the LANVibe release key, while OS signing reduces install warnings.
+Follow Tauri's Windows and macOS signing guides once the platform certificates are available.
 
 ## Notes
 
