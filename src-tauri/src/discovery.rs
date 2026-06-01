@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::Ipv4Addr,
-    process::Command as StdCommand,
     time::Duration,
 };
 
@@ -18,6 +17,9 @@ use crate::{
     models::{Device, DiscoveredDevice},
     tray,
 };
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub fn spawn_loop(app: AppHandle, state: SharedState) {
     tauri::async_runtime::spawn(async move {
@@ -91,13 +93,6 @@ pub fn dashboard_urls(port: u16, bind: &str) -> Vec<String> {
 }
 
 pub fn local_ipv4_addresses() -> Vec<Ipv4Addr> {
-    if cfg!(target_os = "windows") {
-        let addresses = windows_default_gateway_ipv4_addresses();
-        if !addresses.is_empty() {
-            return addresses;
-        }
-    }
-
     usable_interface_ipv4_addresses()
 }
 
@@ -133,48 +128,15 @@ fn usable_interface_ipv4_addresses() -> Vec<Ipv4Addr> {
     addresses
 }
 
-fn windows_default_gateway_ipv4_addresses() -> Vec<Ipv4Addr> {
-    let output = StdCommand::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } | ForEach-Object { $_.IPv4Address.IPAddress }",
-        ])
-        .output();
-
-    let Ok(output) = output else {
-        return Vec::new();
-    };
-    if !output.status.success() {
-        return Vec::new();
-    }
-
-    let mut addresses = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|line| line.trim().parse::<Ipv4Addr>().ok())
-        .filter(|ip| ip.is_private() && !ip.is_loopback() && !ip.is_link_local())
-        .collect::<Vec<_>>();
-
-    addresses.sort_by_key(|ip| {
-        let octets = ip.octets();
-        match octets {
-            [192, 168, ..] => 0,
-            [10, ..] => 1,
-            [172, second, ..] if (16..=31).contains(&second) => 2,
-            _ => 3,
-        }
-    });
-    addresses.dedup();
-    addresses
-}
-
 pub fn is_local_ip(ip: Ipv4Addr) -> bool {
     local_ipv4_addresses().into_iter().any(|local| local == ip)
 }
 
 async fn arp_devices() -> Result<Vec<DiscoveredDevice>> {
     let output = if cfg!(target_os = "windows") {
-        Command::new("arp").arg("-a").output().await?
+        let mut command = Command::new("arp");
+        hide_tokio_command_window(&mut command);
+        command.arg("-a").output().await?
     } else if command_exists("ip").await {
         Command::new("ip").arg("neigh").output().await?
     } else {
@@ -247,6 +209,7 @@ fn candidate_ping_hosts() -> Vec<Ipv4Addr> {
 async fn ping(ip: &Ipv4Addr) -> bool {
     let mut command = if cfg!(target_os = "windows") {
         let mut command = Command::new("ping");
+        hide_tokio_command_window(&mut command);
         command.args(["-n", "1", "-w", "700", &ip.to_string()]);
         command
     } else {
@@ -263,7 +226,9 @@ async fn ping(ip: &Ipv4Addr) -> bool {
 
 async fn command_exists(name: &str) -> bool {
     let output = if cfg!(target_os = "windows") {
-        Command::new("where").arg(name).output().await
+        let mut command = Command::new("where");
+        hide_tokio_command_window(&mut command);
+        command.arg(name).output().await
     } else {
         Command::new("sh")
             .args(["-c", &format!("command -v {name}")])
@@ -296,7 +261,9 @@ async fn local_hostname(ip: &str) -> Option<String> {
         return Some(hostname);
     }
 
-    let output = Command::new("hostname").output().await.ok()?;
+    let mut command = Command::new("hostname");
+    hide_tokio_command_window(&mut command);
+    let output = command.output().await.ok()?;
     if !output.status.success() {
         return None;
     }
@@ -350,6 +317,14 @@ fn infer_vendor(mac: Option<&str>) -> Option<&'static str> {
         _ => None,
     }
 }
+
+#[cfg(windows)]
+fn hide_tokio_command_window(command: &mut Command) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_tokio_command_window(_command: &mut Command) {}
 
 #[cfg(test)]
 mod tests {
