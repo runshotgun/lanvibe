@@ -15,8 +15,8 @@ use crate::{
     app_state::{ApiState, SharedState},
     db, discovery,
     models::{
-        Device, DevicePatch, FavoritePatch, ScanResult, ScanStatusView, Service, Settings,
-        SettingsView, UpdateStatusView,
+        Device, DevicePatch, FavoriteOrderPatch, FavoritePatch, ScanResult, ScanStatusView,
+        Service, Settings, SettingsView, UpdateStatusView,
     },
     scanner, startup, tray,
 };
@@ -82,6 +82,21 @@ pub async fn set_favorite(
         .await
         .map_err(to_string)?;
     let _ = tray::refresh(&app).await;
+    let _ = app.emit("favorites-updated", favorites.clone());
+    Ok(favorites)
+}
+
+#[tauri::command]
+pub async fn reorder_favorites(
+    app: AppHandle,
+    state: TauriState<'_, SharedState>,
+    service_keys: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let favorites = db::reorder_favorites(&state.pool, &service_keys)
+        .await
+        .map_err(to_string)?;
+    let _ = tray::refresh(&app).await;
+    let _ = app.emit("favorites-updated", favorites.clone());
     Ok(favorites)
 }
 
@@ -243,6 +258,19 @@ pub async fn http_set_favorite(
         .await
         .map_err(to_string)?;
     let _ = tray::refresh(&api.app).await;
+    let _ = api.app.emit("favorites-updated", favorites.clone());
+    Ok(Json(favorites))
+}
+
+pub async fn http_reorder_favorites(
+    AxumState(api): AxumState<ApiState>,
+    Json(patch): Json<FavoriteOrderPatch>,
+) -> Result<Json<Vec<String>>, String> {
+    let favorites = db::reorder_favorites(&api.state.pool, &patch.service_keys)
+        .await
+        .map_err(to_string)?;
+    let _ = tray::refresh(&api.app).await;
+    let _ = api.app.emit("favorites-updated", favorites.clone());
     Ok(Json(favorites))
 }
 

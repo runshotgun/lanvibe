@@ -1,23 +1,42 @@
-import { type TouchEvent, useMemo, useRef, useState } from "react";
+import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { RefreshCw, Star } from "lucide-react";
+import { ArrowDownUp, Check, RefreshCw, Star } from "lucide-react";
 
 import { openService } from "@/api";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FavoriteTile, serviceOrigin } from "@/components/favorites/FavoriteTile";
+import { ReorderableFavoritesGrid } from "@/components/favorites/ReorderableFavoritesGrid";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFavicons } from "@/hooks/useFavicons";
-import { compareServices, serviceLabel } from "@/lib/finder";
+import { compareServices, serviceKey, serviceLabel } from "@/lib/finder";
 import type { Device, Service } from "@/types";
+
+function orderByFavoriteKeys(
+  rows: Service[],
+  keys: string[],
+  devices: Device[]
+): Service[] {
+  const orderIndex = new Map(keys.map((key, index) => [key, index]));
+  return [...rows].sort((a, b) => {
+    const ai = orderIndex.get(serviceKey(a)) ?? Number.MAX_SAFE_INTEGER;
+    const bi = orderIndex.get(serviceKey(b)) ?? Number.MAX_SAFE_INTEGER;
+    if (ai !== bi) return ai - bi;
+    return compareServices(a, b, devices);
+  });
+}
 
 export function FavoritesView({
   devices,
   services,
   cachedDevices = [],
   cachedServices = [],
+  favoriteKeys,
   isFavorite,
+  onFavorite,
+  onReorder,
   onRefresh,
   loading,
 }: {
@@ -25,12 +44,15 @@ export function FavoritesView({
   services: Service[];
   cachedDevices?: Device[];
   cachedServices?: Service[];
+  favoriteKeys: string[];
   isFavorite: (service: Service) => boolean;
   onFavorite: (service: Service) => void;
+  onReorder: (orderedKeys: string[]) => void;
   onRefresh: () => Promise<void>;
   loading: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
@@ -43,10 +65,12 @@ export function FavoritesView({
 
   const favoriteRows = useMemo(
     () =>
-      services
-        .filter((service) => isFavorite(service))
-        .sort((a, b) => compareServices(a, b, devices)),
-    [devices, services, isFavorite]
+      orderByFavoriteKeys(
+        services.filter((service) => isFavorite(service)),
+        favoriteKeys,
+        devices
+      ),
+    [devices, favoriteKeys, services, isFavorite]
   );
   const cachedRows = useMemo(
     () => [...cachedServices].sort((a, b) => compareServices(a, b, cachedDevices)),
@@ -56,6 +80,12 @@ export function FavoritesView({
     loading && favoriteRows.length === 0 && cachedRows.length > 0;
   const displayDevices = showingCache ? cachedDevices : devices;
   const displayRows = showingCache ? cachedRows : favoriteRows;
+  const canReorder = !showingCache && favoriteRows.length > 1;
+
+  // Leave edit mode automatically if reordering is no longer possible.
+  useEffect(() => {
+    if (editing && !canReorder) setEditing(false);
+  }, [editing, canReorder]);
 
   const filteredRows = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -76,7 +106,7 @@ export function FavoritesView({
     });
   }, [displayDevices, displayRows, query]);
 
-  const origins = useMemo(() => filteredRows.map(serviceOrigin), [filteredRows]);
+  const origins = useMemo(() => displayRows.map(serviceOrigin), [displayRows]);
   const favicons = useFavicons(origins);
 
   const openFavorite = (service: Service) => {
@@ -84,7 +114,8 @@ export function FavoritesView({
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 1 || refreshing || window.scrollY > 0) return;
+    if (editing || event.touches.length !== 1 || refreshing || window.scrollY > 0)
+      return;
     startY.current = event.touches[0].clientY;
     trackingPull.current = true;
   };
@@ -168,22 +199,62 @@ export function FavoritesView({
             : undefined,
         }}
       >
-        <div className="relative">
-          <FontAwesomeIcon
-            icon={faMagnifyingGlass}
-            className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-current/60"
-          />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search favorites"
-            className="pl-9"
-            aria-label="Search favorites"
-          />
+        <div className="flex items-center gap-2">
+          {editing ? (
+            <p className="flex-1 text-sm text-muted-foreground" aria-live="polite">
+              Drag tiles to reorder. Tap{" "}
+              <span className="font-medium text-foreground">Done</span> when finished.
+            </p>
+          ) : (
+            <div className="relative flex-1">
+              <FontAwesomeIcon
+                icon={faMagnifyingGlass}
+                className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-current/60"
+              />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search favorites"
+                className="pl-9"
+                aria-label="Search favorites"
+              />
+            </div>
+          )}
+
+          {editing ? (
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => setEditing(false)}
+              className="shrink-0"
+            >
+              <Check className="size-4" />
+              Done
+            </Button>
+          ) : canReorder ? (
+            <Button
+              type="button"
+              variant="glass"
+              onClick={() => setEditing(true)}
+              className="shrink-0"
+            >
+              <ArrowDownUp className="size-4" />
+              Reorder
+            </Button>
+          ) : null}
         </div>
 
         {loading && displayRows.length === 0 ? (
           <FavoriteSkeletonGrid />
+        ) : editing ? (
+          <ReorderableFavoritesGrid
+            services={favoriteRows}
+            devices={displayDevices}
+            favicons={favicons}
+            onReorder={onReorder}
+            onRemove={onFavorite}
+            onOpen={openFavorite}
+          />
         ) : filteredRows.length === 0 ? (
           <EmptyState
             icon={<Star />}

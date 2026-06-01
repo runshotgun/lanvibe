@@ -54,7 +54,13 @@ export default function App() {
     () => readFavoritesCache()
   );
   const data = useFinderData();
-  const { loading: favoritesLoading, isFavorite, toggleFavorite } = useFavorites();
+  const {
+    loading: favoritesLoading,
+    favoriteKeys,
+    isFavorite,
+    toggleFavorite,
+    reorderFavorites,
+  } = useFavorites();
   const visibleServices = useMemo(() => {
     if (!data.devicesLoaded) return [];
 
@@ -120,8 +126,10 @@ export default function App() {
           services={visibleServices}
           cachedDevices={cachedFavorites?.devices ?? []}
           cachedServices={cachedFavorites?.services ?? []}
+          favoriteKeys={favoriteKeys}
           isFavorite={isFavorite}
           onFavorite={toggleFavorite}
+          onReorder={reorderFavorites}
           onRefresh={data.refreshAll}
           loading={data.loading || favoritesLoading || !data.devicesLoaded}
         />

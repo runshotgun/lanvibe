@@ -222,9 +222,8 @@ fn apply_rounded_region(window: &WebviewWindow, hwnd: isize) {
         return;
     }
     let scale_factor = window.scale_factor().unwrap_or(1.0);
-    let corner_diameter = ((POPOVER_CORNER_RADIUS_LOGICAL_PX * scale_factor).round() as i32)
-        .max(1)
-        * 2;
+    let corner_diameter =
+        ((POPOVER_CORNER_RADIUS_LOGICAL_PX * scale_factor).round() as i32).max(1) * 2;
 
     // SAFETY: hwnd is valid, and CreateRoundRectRgn returns a GDI region that
     // becomes owned by Windows after SetWindowRgn succeeds.

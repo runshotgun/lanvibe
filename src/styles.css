@@ -135,6 +135,32 @@
   --color-oxford-navy-900: #0d1726;
   --color-oxford-navy-950: #09101b;
 
+  /* Saturated signal green — used for the "active" status indicator. */
+  --color-signal-green-50: #f0fdf4;
+  --color-signal-green-100: #dcfce7;
+  --color-signal-green-200: #bbf7d0;
+  --color-signal-green-300: #86efac;
+  --color-signal-green-400: #4ade80;
+  --color-signal-green-500: #22c55e;
+  --color-signal-green-600: #16a34a;
+  --color-signal-green-700: #15803d;
+  --color-signal-green-800: #166534;
+  --color-signal-green-900: #14532d;
+  --color-signal-green-950: #052e16;
+
+  /* Neutral grey — used for the "inactive" status indicator. */
+  --color-neutral-grey-50: #fafafa;
+  --color-neutral-grey-100: #f5f5f5;
+  --color-neutral-grey-200: #e5e5e5;
+  --color-neutral-grey-300: #d4d4d4;
+  --color-neutral-grey-400: #a3a3a3;
+  --color-neutral-grey-500: #737373;
+  --color-neutral-grey-600: #525252;
+  --color-neutral-grey-700: #404040;
+  --color-neutral-grey-800: #262626;
+  --color-neutral-grey-900: #171717;
+  --color-neutral-grey-950: #0a0a0a;
+
   --background: color-mix(in srgb, var(--color-lanvibe-black) 5%, var(--color-dark-khaki-50));
   --foreground: var(--color-lanvibe-black);
 
@@ -165,12 +191,9 @@
   --warning: var(--color-pitch-black-500);
   --warning-foreground: var(--color-pitch-black-950);
 
-  --status-active: var(--color-cerulean-600);
-  --status-active-contrast: var(--color-cerulean-50);
+  --status-active: var(--color-signal-green-500);
   --status-loading: var(--color-cream-600);
-  --status-loading-contrast: var(--color-pitch-black-950);
-  --status-inactive: var(--color-sandy-brown-600);
-  --status-inactive-contrast: var(--color-sandy-brown-50);
+  --status-inactive: var(--color-neutral-grey-600);
 
   --border: color-mix(in srgb, var(--color-ash-grey-300) 62%, white);
   --input: color-mix(in srgb, var(--color-ash-grey-200) 70%, white);
@@ -276,12 +299,9 @@
   --warning: var(--color-pitch-black-400);
   --warning-foreground: var(--color-pitch-black-950);
 
-  --status-active: var(--color-cerulean-300);
-  --status-active-contrast: var(--color-cerulean-950);
+  --status-active: var(--color-signal-green-400);
   --status-loading: var(--color-cream-400);
-  --status-loading-contrast: var(--color-pitch-black-950);
-  --status-inactive: var(--color-sandy-brown-400);
-  --status-inactive-contrast: var(--color-sandy-brown-950);
+  --status-inactive: var(--color-neutral-grey-500);
 
   --border: color-mix(in srgb, var(--color-ash-grey-300) 16%, transparent);
   --input: color-mix(in srgb, var(--color-ash-grey-300) 14%, transparent);
@@ -618,65 +638,48 @@
     box-shadow: var(--shadow-raised);
   }
 
+  /* Simple, flat status dots: a solid circle per tone.
+     active = saturated green (with a live pulse), inactive = dark grey,
+     loading = a small spinning arc. */
   .status-dot {
     --status-dot-color: var(--status-inactive);
-    --status-dot-contrast: var(--status-inactive-contrast);
     color: var(--status-dot-color);
   }
 
   .status-dot[data-tone="active"] {
     --status-dot-color: var(--status-active);
-    --status-dot-contrast: var(--status-active-contrast);
   }
 
   .status-dot[data-tone="loading"] {
     --status-dot-color: var(--status-loading);
-    --status-dot-contrast: var(--status-loading-contrast);
   }
 
   .status-dot-core {
     background: var(--status-dot-color);
-    box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--status-dot-color) 22%, transparent),
-      0 0 14px color-mix(in srgb, var(--status-dot-color) 70%, transparent);
-  }
-
-  .status-dot-core::after {
-    content: "";
-    position: absolute;
-    inset: 3px;
-    border-radius: inherit;
-    background: var(--status-dot-contrast);
-    opacity: 0.88;
-  }
-
-  .status-dot[data-tone="inactive"] .status-dot-core {
-    border-radius: 0.22rem;
-    transform: rotate(45deg) scale(0.82);
   }
 
   .status-dot[data-tone="loading"] .status-dot-core {
-    border-radius: 9999px;
-    background:
-      conic-gradient(
-        from 0deg,
-        var(--status-dot-color),
-        var(--status-dot-color) 42%,
-        color-mix(in srgb, var(--status-dot-color) 18%, transparent) 43%,
-        color-mix(in srgb, var(--status-dot-color) 18%, transparent)
-      );
-    animation: spin 1s linear infinite;
-  }
-
-  .status-dot[data-tone="loading"] .status-dot-core::after {
-    inset: 4px;
-    background: var(--background);
-    opacity: 1;
+    background: conic-gradient(from 0deg, transparent, var(--status-dot-color));
+    -webkit-mask: radial-gradient(closest-side, transparent 58%, #000 60%);
+    mask: radial-gradient(closest-side, transparent 58%, #000 60%);
+    animation: spin 0.8s linear infinite;
   }
 
   .status-dot-pulse {
     background: var(--status-dot-color);
-    box-shadow: 0 0 18px color-mix(in srgb, var(--status-dot-color) 85%, transparent);
+  }
+
+  /* iOS-style edit/reorder mode for the Favorites grid. */
+  .favorite-reorder-grid {
+    touch-action: none;
+  }
+
+  .favorite-tile-dragging {
+    z-index: 50;
+    cursor: grabbing;
+    transform: scale(1.05);
+    box-shadow: var(--shadow-raised);
+    opacity: 0.97;
   }
 
   .mobile-status-fade,
@@ -722,8 +725,18 @@
   }
 }
 
+/* The live pulse is only meaningful for the active tone. The component
+   only renders the pulse element for active, but this unlayered guard makes
+   the invariant bulletproof: it beats the Tailwind utilities layer
+   (inline-flex / animate-ping) so a stray pulse can never show or animate on
+   loading/inactive dots. */
+.status-dot:not([data-tone="active"]) .status-dot-pulse {
+  display: none;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
+

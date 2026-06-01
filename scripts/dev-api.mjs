@@ -108,7 +108,7 @@ async function savePersistedState() {
     statePath,
     `${JSON.stringify(
       {
-        favorites: [...favorites],
+        favorites: [...favoriteKeys],
         deviceAliases: persistedState.deviceAliases,
         settings,
       },
@@ -276,17 +276,19 @@ const scanStatus = {
 };
 
 const settings = { ...defaultSettings, ...(persistedState.settings ?? {}) };
-const favorites = new Set(Array.isArray(persistedState.favorites) ? persistedState.favorites : []);
+let favoriteKeys = Array.isArray(persistedState.favorites)
+  ? [...new Set(persistedState.favorites)]
+  : [];
 
 function migrateFavoriteKeys(oldDeviceId, newDeviceId) {
   let changed = false;
   const oldPrefix = `${oldDeviceId}:`;
-  for (const key of [...favorites]) {
-    if (!key.startsWith(oldPrefix)) continue;
-    favorites.delete(key);
-    favorites.add(`${newDeviceId}:${key.slice(oldPrefix.length)}`);
+  favoriteKeys = favoriteKeys.map((key) => {
+    if (!key.startsWith(oldPrefix)) return key;
     changed = true;
-  }
+    return `${newDeviceId}:${key.slice(oldPrefix.length)}`;
+  });
+  if (changed) favoriteKeys = [...new Set(favoriteKeys)];
   return changed;
 }
 
@@ -598,14 +600,39 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/api/devices/refresh") return json(response, 200, await discoverDevices());
     if (request.method === "GET" && url.pathname === "/api/services") return json(response, 200, retainedServices());
     if (request.method === "GET" && url.pathname === "/api/scan/status") return json(response, 200, scanStatus);
-    if (request.method === "GET" && url.pathname === "/api/favorites") return json(response, 200, [...favorites]);
+    if (request.method === "GET" && url.pathname === "/api/favorites") return json(response, 200, [...favoriteKeys]);
     if (request.method === "PATCH" && url.pathname === "/api/favorites") {
       const patch = await bodyJson(request);
       const key = typeof patch.serviceKey === "string" ? patch.serviceKey.trim() : "";
-      if (patch.favorite && key) favorites.add(key);
-      else favorites.delete(key);
+      if (patch.favorite && key) {
+        if (!favoriteKeys.includes(key)) favoriteKeys.push(key);
+      } else {
+        favoriteKeys = favoriteKeys.filter((existing) => existing !== key);
+      }
       await savePersistedState();
-      return json(response, 200, [...favorites]);
+      return json(response, 200, [...favoriteKeys]);
+    }
+    if (request.method === "PATCH" && url.pathname === "/api/favorites/order") {
+      const patch = await bodyJson(request);
+      const requested = Array.isArray(patch.serviceKeys) ? patch.serviceKeys : [];
+      const existing = new Set(favoriteKeys);
+      const seen = new Set();
+      const ordered = [];
+      for (const raw of requested) {
+        const key = typeof raw === "string" ? raw.trim() : "";
+        if (!key || !existing.has(key) || seen.has(key)) continue;
+        seen.add(key);
+        ordered.push(key);
+      }
+      for (const key of favoriteKeys) {
+        if (!seen.has(key)) {
+          seen.add(key);
+          ordered.push(key);
+        }
+      }
+      favoriteKeys = ordered;
+      await savePersistedState();
+      return json(response, 200, [...favoriteKeys]);
     }
     if (request.method === "GET" && url.pathname === "/api/settings") {
       return json(response, 200, {

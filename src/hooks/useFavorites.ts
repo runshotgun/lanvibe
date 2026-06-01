@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { listFavorites, setFavorite } from "@/api";
+import { listFavorites, reorderFavorites as apiReorderFavorites, setFavorite } from "@/api";
 import { serviceKey } from "@/lib/finder";
 import type { Service } from "@/types";
 
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<Set<string>>(() => new Set());
+  const [favoriteKeys, setFavoriteKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  // While a reorder/toggle is awaiting the server, skip background poll results
+  // so an in-flight optimistic order isn't clobbered by stale data.
+  const mutating = useRef(false);
+
+  const favorites = useMemo(() => new Set(favoriteKeys), [favoriteKeys]);
 
   const refreshFavorites = useCallback(async () => {
     try {
       const saved = await listFavorites();
-      setFavorites(new Set(saved));
+      if (!mutating.current) setFavoriteKeys(saved);
     } finally {
       setLoading(false);
     }
@@ -20,9 +25,10 @@ export function useFavorites() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      if (mutating.current) return;
       try {
         const saved = await listFavorites();
-        if (!cancelled) setFavorites(new Set(saved));
+        if (!cancelled && !mutating.current) setFavoriteKeys(saved);
       } catch (error) {
         console.error("Unable to load favorites", error);
       } finally {
@@ -47,21 +53,52 @@ export function useFavorites() {
     async (service: Service) => {
       const key = serviceKey(service);
       const favorite = !favorites.has(key);
-      const optimistic = new Set(favorites);
-      if (favorite) optimistic.add(key);
-      else optimistic.delete(key);
-      setFavorites(optimistic);
+      const previous = favoriteKeys;
+      const optimistic = favorite
+        ? [...favoriteKeys.filter((item) => item !== key), key]
+        : favoriteKeys.filter((item) => item !== key);
+      setFavoriteKeys(optimistic);
 
+      mutating.current = true;
       try {
         const saved = await setFavorite(key, favorite);
-        setFavorites(new Set(saved));
+        setFavoriteKeys(saved);
       } catch (error) {
         console.error("Unable to save favorite", error);
-        await refreshFavorites().catch(() => setFavorites(favorites));
+        setFavoriteKeys(previous);
+      } finally {
+        mutating.current = false;
       }
     },
-    [favorites, refreshFavorites]
+    [favoriteKeys, favorites]
   );
 
-  return { favorites, loading, isFavorite, toggleFavorite };
+  const reorderFavorites = useCallback(
+    async (orderedKeys: string[]) => {
+      const previous = favoriteKeys;
+      setFavoriteKeys(orderedKeys);
+
+      mutating.current = true;
+      try {
+        const saved = await apiReorderFavorites(orderedKeys);
+        setFavoriteKeys(saved);
+      } catch (error) {
+        console.error("Unable to reorder favorites", error);
+        setFavoriteKeys(previous);
+      } finally {
+        mutating.current = false;
+      }
+    },
+    [favoriteKeys]
+  );
+
+  return {
+    favorites,
+    favoriteKeys,
+    loading,
+    isFavorite,
+    toggleFavorite,
+    reorderFavorites,
+    refreshFavorites,
+  };
 }

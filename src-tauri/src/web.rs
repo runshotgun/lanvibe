@@ -32,6 +32,7 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
             "/api/favorites",
             get(api::http_list_favorites).patch(api::http_set_favorite),
         )
+        .route("/api/favorites/order", patch(api::http_reorder_favorites))
         .route("/api/favicon", get(api::http_get_favicon))
         .route("/api/scan", post(api::http_scan))
         .route("/api/scan/status", get(api::http_scan_status))

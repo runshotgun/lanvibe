@@ -156,6 +156,12 @@ pub struct FavoritePatch {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FavoriteOrderPatch {
+    pub service_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub scanned_devices: usize,
     pub discovered_services: usize,

@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -71,12 +74,19 @@ async fn migrate(pool: &SqlitePool) -> Result<()> {
         r#"
         CREATE TABLE IF NOT EXISTS favorites (
             service_key TEXT PRIMARY KEY,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            sort_order INTEGER
         );
         "#,
     )
     .execute(pool)
     .await?;
+
+    sqlx::query("ALTER TABLE favorites ADD COLUMN sort_order INTEGER")
+        .execute(pool)
+        .await
+        .ok();
+    backfill_favorite_sort_order(pool).await?;
 
     sqlx::query(
         r#"
@@ -116,6 +126,31 @@ async fn migrate(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    Ok(())
+}
+
+async fn backfill_favorite_sort_order(pool: &SqlitePool) -> Result<()> {
+    let mut next_order =
+        sqlx::query("SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM favorites")
+            .fetch_one(pool)
+            .await?
+            .get::<i64, _>("next_order");
+    let rows = sqlx::query(
+        "SELECT service_key FROM favorites WHERE sort_order IS NULL ORDER BY created_at ASC",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for row in rows {
+        let key = row.get::<String, _>("service_key");
+        sqlx::query("UPDATE favorites SET sort_order = ? WHERE service_key = ?")
+            .bind(next_order)
+            .bind(key)
+            .execute(pool)
+            .await?;
+        next_order += 1;
+    }
 
     Ok(())
 }
@@ -299,8 +334,8 @@ async fn migrate_favorite_device_keys(pool: &SqlitePool, old_id: &str, new_id: &
         let new_key = format!("{new_id}:{port_suffix}");
         sqlx::query(
             r#"
-            INSERT INTO favorites(service_key, created_at)
-            SELECT ?, created_at FROM favorites WHERE service_key = ?
+            INSERT INTO favorites(service_key, created_at, sort_order)
+            SELECT ?, created_at, sort_order FROM favorites WHERE service_key = ?
             ON CONFLICT(service_key) DO NOTHING
             "#,
         )
@@ -360,9 +395,10 @@ pub async fn delete_unselected_devices_without_services(
 }
 
 pub async fn list_favorite_keys(pool: &SqlitePool) -> Result<Vec<String>> {
-    let rows = sqlx::query("SELECT service_key FROM favorites ORDER BY created_at ASC")
-        .fetch_all(pool)
-        .await?;
+    let rows =
+        sqlx::query("SELECT service_key FROM favorites ORDER BY sort_order ASC, created_at ASC")
+            .fetch_all(pool)
+            .await?;
     Ok(rows
         .into_iter()
         .map(|row| row.get::<String, _>("service_key"))
@@ -379,7 +415,7 @@ pub async fn list_favorite_services(pool: &SqlitePool) -> Result<Vec<Service>> {
         INNER JOIN devices
             ON devices.id = services.device_id
         WHERE devices.selected = 1 AND devices.ignored = 0
-        ORDER BY favorites.created_at ASC
+        ORDER BY favorites.sort_order ASC, favorites.created_at ASC
         "#,
     )
     .fetch_all(pool)
@@ -396,7 +432,8 @@ pub async fn set_favorite(
     if favorite && !key.is_empty() {
         sqlx::query(
             r#"
-            INSERT INTO favorites(service_key, created_at) VALUES (?, ?)
+            INSERT INTO favorites(service_key, created_at, sort_order)
+            VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM favorites))
             ON CONFLICT(service_key) DO NOTHING
             "#,
         )
@@ -406,6 +443,40 @@ pub async fn set_favorite(
         .await?;
     } else {
         sqlx::query("DELETE FROM favorites WHERE service_key = ?")
+            .bind(key)
+            .execute(pool)
+            .await?;
+    }
+
+    list_favorite_keys(pool).await
+}
+
+pub async fn reorder_favorites(pool: &SqlitePool, service_keys: &[String]) -> Result<Vec<String>> {
+    let existing = list_favorite_keys(pool).await?;
+    let existing_set = existing.iter().cloned().collect::<HashSet<_>>();
+    let mut ordered = Vec::with_capacity(existing.len());
+    let mut seen = HashSet::new();
+
+    for key in service_keys {
+        let trimmed = key.trim();
+        if trimmed.is_empty()
+            || !existing_set.contains(trimmed)
+            || !seen.insert(trimmed.to_string())
+        {
+            continue;
+        }
+        ordered.push(trimmed.to_string());
+    }
+
+    for key in existing {
+        if seen.insert(key.clone()) {
+            ordered.push(key);
+        }
+    }
+
+    for (index, key) in ordered.iter().enumerate() {
+        sqlx::query("UPDATE favorites SET sort_order = ? WHERE service_key = ?")
+            .bind(index as i64)
             .bind(key)
             .execute(pool)
             .await?;
@@ -924,6 +995,43 @@ mod tests {
         assert_eq!(
             list_favorite_keys(&pool).await.unwrap(),
             vec![format!("{}:8080", mac_device.id)]
+        );
+    }
+
+    #[tokio::test]
+    async fn favorites_can_be_reordered_and_new_items_append() {
+        let dir = tempdir().unwrap();
+        let pool = connect(&dir.path().join("test.sqlite3")).await.unwrap();
+        let keys = ["device:8080", "device:9090", "device:3000"];
+
+        for key in keys {
+            set_favorite(&pool, key, true).await.unwrap();
+        }
+
+        let reordered = reorder_favorites(
+            &pool,
+            &["device:3000".to_string(), "device:8080".to_string()],
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            reordered,
+            vec![
+                "device:3000".to_string(),
+                "device:8080".to_string(),
+                "device:9090".to_string()
+            ]
+        );
+
+        let saved = set_favorite(&pool, "device:4444", true).await.unwrap();
+        assert_eq!(
+            saved,
+            vec![
+                "device:3000".to_string(),
+                "device:8080".to_string(),
+                "device:9090".to_string(),
+                "device:4444".to_string()
+            ]
         );
     }
 }

@@ -85,6 +85,17 @@ export async function setFavorite(serviceKey: string, favorite: boolean): Promis
   });
 }
 
+export async function reorderFavorites(serviceKeys: string[]): Promise<string[]> {
+  if (inTauri()) {
+    return invokeCommand<string[]>("reorder_favorites", { serviceKeys });
+  }
+
+  return request<string[]>("/api/favorites/order", {
+    method: "PATCH",
+    body: JSON.stringify({ serviceKeys }),
+  });
+}
+
 export async function getSettings(): Promise<SettingsView> {
   return inTauri() ? invokeCommand<SettingsView>("get_settings_view") : request<SettingsView>("/api/settings");
 }
