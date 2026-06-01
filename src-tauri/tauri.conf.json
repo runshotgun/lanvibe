@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LANVibe",
+  "version": "0.1.0",
+  "identifier": "com.thekeven.lanvibe",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "LANVibe",
+        "label": "main",
+        "width": 520,
+        "height": 720,
+        "minWidth": 360,
+        "minHeight": 520,
+        "visible": false,
+        "resizable": true,
+        "decorations": true
+      },
+      {
+        "title": "LANVibe",
+        "label": "popover",
+        "url": "index.html?window=popover",
+        "width": 384,
+        "height": 520,
+        "visible": false,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "backgroundColor": "#00000000",
+        "backgroundThrottling": "disabled",
+        "maximizable": false,
+        "minimizable": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": ["../dist/**/*"],
+    "category": "Utility",
+    "shortDescription": "Discover LAN web UIs",
+    "longDescription": "LANVibe discovers LAN devices and scans selected devices for HTTP and HTTPS web interfaces."
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDMTE2NDE5NkM4QkY2RUEKUldUcTlvdHNHV1FSUExEUDJrb0k4L0FKR01TdGs1dWRTdDBvTHZMTXdHNlFjN2E0bVdkVGZNTFYK",
+      "endpoints": [
+        "https://github.com/runshotgun/lanvibe/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

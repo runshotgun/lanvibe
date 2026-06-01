@@ -1,0 +1,25 @@
+{
+  "name": "LANVibe",
+  "short_name": "LANVibe",
+  "description": "Discover and reopen web UIs running on your LAN.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#141204",
+  "theme_color": "#141204",
+  "icons": [
+    {
+      "src": "/lanvibe-icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/lanvibe-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

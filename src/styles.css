@@ -1,0 +1,657 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Design tokens for LANVibe.
+  Subtle liquid-glass depth: translucent surfaces, hairline borders,
+  soft layered shadows, and the LANVibe field-station palette.
+*/
+
+:root {
+  --radius: 0.85rem;
+  --color-lanvibe-black: #141204;
+
+  --color-pitch-black-50: #fbf9ea;
+  --color-pitch-black-100: #f7f3d4;
+  --color-pitch-black-200: #eee6aa;
+  --color-pitch-black-300: #e6da7f;
+  --color-pitch-black-400: #ddcd55;
+  --color-pitch-black-500: #d5c12a;
+  --color-pitch-black-600: #aa9a22;
+  --color-pitch-black-700: #807419;
+  --color-pitch-black-800: #554d11;
+  --color-pitch-black-900: #2b2708;
+  --color-pitch-black-950: #1e1b06;
+
+  /* First khaki ramp from the supplied palette. */
+  --color-olive-khaki-50: #f6f8ed;
+  --color-olive-khaki-100: #eef1da;
+  --color-olive-khaki-200: #dce3b5;
+  --color-olive-khaki-300: #cbd590;
+  --color-olive-khaki-400: #b9c76b;
+  --color-olive-khaki-500: #a8b946;
+  --color-olive-khaki-600: #869438;
+  --color-olive-khaki-700: #656f2a;
+  --color-olive-khaki-800: #434a1c;
+  --color-olive-khaki-900: #22250e;
+  --color-olive-khaki-950: #171a0a;
+
+  /* Second khaki ramp from the supplied palette. */
+  --color-dark-khaki-50: #f6f3ee;
+  --color-dark-khaki-100: #eee7dd;
+  --color-dark-khaki-200: #dcd0bc;
+  --color-dark-khaki-300: #cbb89a;
+  --color-dark-khaki-400: #baa178;
+  --color-dark-khaki-500: #a88957;
+  --color-dark-khaki-600: #876e45;
+  --color-dark-khaki-700: #655234;
+  --color-dark-khaki-800: #433723;
+  --color-dark-khaki-900: #221b11;
+  --color-dark-khaki-950: #18130c;
+
+  --color-sandy-brown-50: #fef1e6;
+  --color-sandy-brown-100: #fee3cd;
+  --color-sandy-brown-200: #fdc79b;
+  --color-sandy-brown-300: #fcab69;
+  --color-sandy-brown-400: #fb8f37;
+  --color-sandy-brown-500: #fa7305;
+  --color-sandy-brown-600: #c85c04;
+  --color-sandy-brown-700: #964503;
+  --color-sandy-brown-800: #642e02;
+  --color-sandy-brown-900: #321701;
+  --color-sandy-brown-950: #231001;
+
+  --color-cream-50: #ffffe5;
+  --color-cream-100: #ffffcc;
+  --color-cream-200: #ffff99;
+  --color-cream-300: #ffff66;
+  --color-cream-400: #ffff33;
+  --color-cream-500: #ffff00;
+  --color-cream-600: #cccc00;
+  --color-cream-700: #999900;
+  --color-cream-800: #666600;
+  --color-cream-900: #333300;
+  --color-cream-950: #242400;
+
+  --color-ash-grey-50: #f0f4f2;
+  --color-ash-grey-100: #e2e9e5;
+  --color-ash-grey-200: #c4d4cb;
+  --color-ash-grey-300: #a7beb1;
+  --color-ash-grey-400: #8aa896;
+  --color-ash-grey-500: #6c937c;
+  --color-ash-grey-600: #577563;
+  --color-ash-grey-700: #41584b;
+  --color-ash-grey-800: #2b3b32;
+  --color-ash-grey-900: #161d19;
+  --color-ash-grey-950: #0f1511;
+
+  --color-muted-teal-50: #f0f4f1;
+  --color-muted-teal-100: #e2e9e2;
+  --color-muted-teal-200: #c5d3c6;
+  --color-muted-teal-300: #a8bda9;
+  --color-muted-teal-400: #8ba78d;
+  --color-muted-teal-500: #6e9170;
+  --color-muted-teal-600: #58745a;
+  --color-muted-teal-700: #425743;
+  --color-muted-teal-800: #2c3a2d;
+  --color-muted-teal-900: #161d16;
+  --color-muted-teal-950: #0f1410;
+
+  --color-dark-cyan-50: #eff5f5;
+  --color-dark-cyan-100: #e0ebeb;
+  --color-dark-cyan-200: #c0d7d8;
+  --color-dark-cyan-300: #a1c4c4;
+  --color-dark-cyan-400: #82b0b0;
+  --color-dark-cyan-500: #629c9d;
+  --color-dark-cyan-600: #4f7d7d;
+  --color-dark-cyan-700: #3b5e5e;
+  --color-dark-cyan-800: #273e3f;
+  --color-dark-cyan-900: #141f1f;
+  --color-dark-cyan-950: #0e1616;
+
+  --color-cerulean-50: #edf3f7;
+  --color-cerulean-100: #dce8ef;
+  --color-cerulean-200: #b8d1e0;
+  --color-cerulean-300: #95b9d0;
+  --color-cerulean-400: #71a2c1;
+  --color-cerulean-500: #4e8bb1;
+  --color-cerulean-600: #3e6f8e;
+  --color-cerulean-700: #2f536a;
+  --color-cerulean-800: #1f3847;
+  --color-cerulean-900: #101c23;
+  --color-cerulean-950: #0b1319;
+
+  --color-oxford-navy-50: #ecf1f9;
+  --color-oxford-navy-100: #d9e3f2;
+  --color-oxford-navy-200: #b3c8e6;
+  --color-oxford-navy-300: #8cacd9;
+  --color-oxford-navy-400: #6690cc;
+  --color-oxford-navy-500: #4075bf;
+  --color-oxford-navy-600: #335d99;
+  --color-oxford-navy-700: #264673;
+  --color-oxford-navy-800: #192f4d;
+  --color-oxford-navy-900: #0d1726;
+  --color-oxford-navy-950: #09101b;
+
+  --background: color-mix(in srgb, var(--color-lanvibe-black) 5%, var(--color-dark-khaki-50));
+  --foreground: var(--color-lanvibe-black);
+
+  --card: color-mix(in srgb, var(--color-lanvibe-black) 4%, var(--color-dark-khaki-50));
+  --card-foreground: var(--color-lanvibe-black);
+
+  --popover: color-mix(in srgb, var(--color-lanvibe-black) 5%, var(--color-dark-khaki-50));
+  --popover-foreground: var(--color-lanvibe-black);
+
+  --primary: var(--color-sandy-brown-600);
+  --primary-foreground: var(--color-sandy-brown-50);
+
+  --secondary: var(--color-dark-khaki-100);
+  --secondary-foreground: var(--color-dark-khaki-900);
+
+  --muted: var(--color-ash-grey-100);
+  --muted-foreground: var(--color-ash-grey-700);
+
+  --accent: color-mix(in srgb, var(--color-sandy-brown-50) 70%, var(--color-ash-grey-50));
+  --accent-foreground: var(--color-sandy-brown-800);
+
+  --destructive: var(--color-sandy-brown-700);
+  --destructive-foreground: var(--color-sandy-brown-50);
+
+  --success: var(--color-muted-teal-600);
+  --success-foreground: var(--color-muted-teal-50);
+
+  --warning: var(--color-pitch-black-500);
+  --warning-foreground: var(--color-pitch-black-950);
+
+  --status-active: var(--success);
+  --status-loading: var(--warning);
+  --status-inactive: #d73535;
+
+  --border: color-mix(in srgb, var(--color-ash-grey-300) 62%, white);
+  --input: color-mix(in srgb, var(--color-ash-grey-200) 70%, white);
+  --ring: var(--color-cerulean-500);
+
+  /* Glass surfaces + shadows */
+  --glass: color-mix(in srgb, var(--color-ash-grey-50) 58%, transparent);
+  --glass-strong: color-mix(in srgb, white 70%, var(--color-ash-grey-50));
+  --glass-border: color-mix(in srgb, white 58%, var(--color-ash-grey-300));
+  --glass-blur: 18px;
+
+  /* Wealthsimple pill buttons - exact recipe (gradient border-ring via
+     ::before, inner bevel via ::after, blur, soft shadow, hover overlay).
+     Light theme mirrors the dark Wealthsimple values (white <-> near-black). */
+
+  /* Primary pill ("Log in"): high-contrast neutral. */
+  --pill-bg: color-mix(in srgb, var(--color-lanvibe-black) 92%, transparent);
+  --pill-fg: var(--color-ash-grey-50);
+  --pill-shadow: 0 8px 20px color-mix(in srgb, var(--color-lanvibe-black) 18%, transparent);
+  --pill-ring: linear-gradient(
+    170.89deg,
+    rgba(255, 255, 255, 0.55) 3.02%,
+    rgba(255, 255, 255, 0.1) 28.94%,
+    rgba(255, 255, 255, 0.3) 108.33%
+  );
+  --pill-bevel: linear-gradient(
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0) 25.12%,
+    rgba(255, 255, 255, 0.22) 102.08%
+  );
+  --pill-hover: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08));
+
+  /* Secondary pill ("Log in with a passkey"): subtle tactile glass. */
+  --tactile: color-mix(in srgb, var(--color-lanvibe-black) 5%, transparent);
+  --tactile-fg: color-mix(in srgb, var(--color-lanvibe-black) 90%, transparent);
+  --tactile-shadow: 0 8px 16px color-mix(in srgb, var(--color-lanvibe-black) 12%, transparent);
+  --tactile-ring: linear-gradient(
+    170.89deg,
+    rgba(13, 13, 13, 0.22) 3.02%,
+    rgba(13, 13, 13, 0.05) 28.94%,
+    rgba(13, 13, 13, 0.14) 108.33%
+  );
+  --tactile-bevel: linear-gradient(
+    320.64deg,
+    rgba(255, 255, 255, 0.95) 11.97%,
+    rgba(255, 255, 255, 0.4) 48.91%,
+    rgba(255, 255, 255, 0.85) 91.55%
+  );
+  --tactile-hover: linear-gradient(rgba(13, 13, 13, 0.05), rgba(13, 13, 13, 0.05));
+
+  /* Tray popover surface: instant frosted tint from first paint. */
+  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 28%, transparent);
+  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 72%, transparent);
+  --popover-surface-border: color-mix(in srgb, var(--color-ash-grey-50) 20%, transparent);
+  --popover-frost-highlight: color-mix(in srgb, white 34%, transparent);
+  --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-600) 14%, transparent);
+  --popover-frost-grain: color-mix(in srgb, white 9%, transparent);
+  --shadow-color: 211 49% 7%;
+  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.07),
+    0 8px 22px -10px hsl(var(--shadow-color) / 0.14);
+  --shadow-raised: 0 1px 2px hsl(var(--shadow-color) / 0.1),
+    0 18px 42px -16px hsl(var(--shadow-color) / 0.24);
+
+  /* Ambient page backdrop */
+  --backdrop: linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-dark-khaki-50) 82%, var(--color-lanvibe-black)) 0%,
+      color-mix(in srgb, var(--color-ash-grey-50) 66%, var(--color-lanvibe-black)) 50%,
+      color-mix(in srgb, var(--color-olive-khaki-100) 55%, var(--color-lanvibe-black)) 100%
+    );
+}
+
+.dark {
+  --background: var(--color-lanvibe-black);
+  --foreground: var(--color-ash-grey-50);
+
+  --card: color-mix(in srgb, var(--color-lanvibe-black) 88%, var(--color-dark-khaki-950));
+  --card-foreground: var(--color-ash-grey-50);
+
+  --popover: color-mix(in srgb, var(--color-lanvibe-black) 88%, var(--color-dark-khaki-950));
+  --popover-foreground: var(--color-ash-grey-50);
+
+  --primary: var(--color-sandy-brown-400);
+  --primary-foreground: var(--color-sandy-brown-950);
+
+  --secondary: color-mix(in srgb, var(--color-lanvibe-black) 72%, var(--color-dark-khaki-800));
+  --secondary-foreground: var(--color-ash-grey-100);
+
+  --muted: color-mix(in srgb, var(--color-lanvibe-black) 72%, var(--color-ash-grey-900));
+  --muted-foreground: var(--color-ash-grey-300);
+
+  --accent: color-mix(in srgb, var(--color-sandy-brown-950) 55%, var(--color-lanvibe-black));
+  --accent-foreground: var(--color-sandy-brown-100);
+
+  --destructive: var(--color-sandy-brown-400);
+  --destructive-foreground: var(--color-sandy-brown-950);
+
+  --success: var(--color-muted-teal-400);
+  --success-foreground: var(--color-muted-teal-950);
+
+  --warning: var(--color-pitch-black-400);
+  --warning-foreground: var(--color-pitch-black-950);
+
+  --status-active: var(--success);
+  --status-loading: var(--warning);
+  --status-inactive: #ff5a52;
+
+  --border: color-mix(in srgb, var(--color-ash-grey-300) 16%, transparent);
+  --input: color-mix(in srgb, var(--color-ash-grey-300) 14%, transparent);
+  --ring: var(--color-cerulean-400);
+
+  --glass: color-mix(in srgb, var(--color-lanvibe-black) 42%, transparent);
+  --glass-strong: color-mix(in srgb, var(--color-lanvibe-black) 66%, transparent);
+  --glass-border: color-mix(in srgb, var(--color-ash-grey-200) 13%, transparent);
+  --glass-blur: 20px;
+
+  /* Exact Wealthsimple pill values (dark theme). */
+  --pill-bg: color-mix(in srgb, var(--color-ash-grey-50) 92%, transparent);
+  --pill-fg: var(--color-lanvibe-black);
+  --pill-shadow: 0 8px 20px color-mix(in srgb, var(--color-ash-grey-50) 6%, transparent);
+  --pill-ring: linear-gradient(
+    170.89deg,
+    rgba(255, 255, 255, 0.9) 3.02%,
+    rgba(255, 255, 255, 0.15) 28.94%,
+    rgba(255, 255, 255, 0.5) 108.33%
+  );
+  --pill-bevel: linear-gradient(
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0) 25.12%,
+    rgba(255, 255, 255, 0.7) 102.08%
+  );
+  --pill-hover: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+
+  --tactile: color-mix(in srgb, var(--color-ash-grey-50) 8%, transparent);
+  --tactile-fg: color-mix(in srgb, var(--color-ash-grey-50) 85%, transparent);
+  --tactile-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  --tactile-ring: linear-gradient(
+    170.89deg,
+    rgba(255, 255, 255, 0.45) 3.02%,
+    rgba(255, 255, 255, 0.08) 28.94%,
+    rgba(255, 255, 255, 0.25) 108.33%
+  );
+  --tactile-bevel: linear-gradient(
+    320.64deg,
+    rgb(13, 13, 13) 11.97%,
+    rgba(30, 30, 30, 0.3) 48.91%,
+    rgb(26, 26, 26) 91.55%
+  );
+  --tactile-hover: linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08));
+
+  /* Darker, low-opacity surface drawn by CSS immediately. */
+  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 34%, transparent);
+  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 76%, transparent);
+  --popover-surface-border: color-mix(in srgb, var(--color-ash-grey-200) 14%, transparent);
+  --popover-frost-highlight: color-mix(in srgb, var(--color-ash-grey-50) 13%, transparent);
+  --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-950) 24%, transparent);
+  --popover-frost-grain: color-mix(in srgb, var(--color-ash-grey-50) 5%, transparent);
+  --shadow-color: 211 50% 4%;
+  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.4),
+    0 8px 20px -10px hsl(var(--shadow-color) / 0.6);
+  --shadow-raised: 0 1px 2px hsl(var(--shadow-color) / 0.5),
+    0 16px 40px -14px hsl(var(--shadow-color) / 0.7);
+
+  --backdrop: linear-gradient(
+      145deg,
+      var(--color-lanvibe-black) 0%,
+      color-mix(in srgb, var(--color-lanvibe-black) 84%, var(--color-dark-khaki-950)) 58%,
+      color-mix(in srgb, var(--color-lanvibe-black) 76%, var(--color-olive-khaki-950)) 100%
+    );
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--background);
+    background-image: var(--backdrop);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    /* webapp feel: avoid rubber-band + tap highlight */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #root {
+    min-height: 100dvh;
+    background-color: var(--background);
+  }
+
+  /* Frameless tray popover: keep the WebView transparent and avoid transitions
+     on the outer surface so opening it never fades from solid to translucent. */
+  html[data-window="popover"],
+  html[data-window="popover"] body {
+    background: transparent;
+    background-image: none;
+    min-height: 0;
+    transition: none;
+  }
+
+  html[data-window="popover"] #root {
+    min-height: 100dvh;
+    background-color: transparent;
+  }
+
+  /* Respect notches / home indicators when running as an installed webapp */
+  .safe-top {
+    padding-top: calc(env(safe-area-inset-top, 0px) + var(--safe-top-offset, 0px));
+  }
+  .safe-bottom {
+    padding-bottom: calc(
+      env(safe-area-inset-bottom, 0px) + var(--safe-bottom-offset, 0px)
+    );
+  }
+  .safe-x {
+    padding-left: calc(env(safe-area-inset-left, 0px) + var(--safe-left-offset, 0px));
+    padding-right: calc(env(safe-area-inset-right, 0px) + var(--safe-right-offset, 0px));
+  }
+}
+
+@layer components {
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .glass-strong {
+    background: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* Wealthsimple pill buttons - exact recipe.
+     `.btn-primary` = the light "Log in" pill; `.tactile` = the "Log in with a
+     passkey" secondary. Both use a masked gradient border-ring (::before) plus
+     an inner bevel (::after), blur(18px), a soft drop shadow, a hover overlay
+     via background-image, and an active scale. Designed for `rounded-full`
+     pills, but the rings inherit any radius (e.g. `rounded-xl` cards). */
+  .btn-primary,
+  .tactile {
+    position: relative;
+    isolation: isolate;
+    border: 0;
+    letter-spacing: -0.01em;
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+    transition: box-shadow 0.2s ease, background-image 0.2s ease,
+      transform 0.1s ease, color 0.4s ease;
+  }
+
+  .btn-primary::before,
+  .btn-primary::after,
+  .tactile::before,
+  .tactile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .btn-primary::after,
+  .tactile::after {
+    inset: 1px;
+  }
+
+  .btn-primary {
+    background-color: var(--pill-bg);
+    color: var(--pill-fg);
+    box-shadow: var(--pill-shadow);
+  }
+  .btn-primary::before {
+    background: var(--pill-ring);
+  }
+  .btn-primary::after {
+    background: var(--pill-bevel);
+  }
+  .btn-primary:hover {
+    background-image: var(--pill-hover);
+  }
+
+  .tactile {
+    background-color: var(--tactile);
+    color: var(--tactile-fg);
+    box-shadow: var(--tactile-shadow);
+  }
+  .tactile::before {
+    background: var(--tactile-ring);
+  }
+  .tactile::after {
+    background: var(--tactile-bevel);
+  }
+  .tactile:hover {
+    background-image: var(--tactile-hover);
+  }
+
+  .btn-primary:active,
+  .tactile:active {
+    transform: scale(0.98);
+    box-shadow: none;
+  }
+
+  /* Single full-window surface for the tray popover. It fills the whole window
+     edge-to-edge (the OS rounds the window corners), so there is no floating
+     inner card or drop-shadow halo. */
+  .popover-surface {
+    isolation: isolate;
+    box-sizing: border-box;
+    border-radius: 8px;
+    background:
+      linear-gradient(
+        to bottom,
+        var(--popover-frost-highlight),
+        color-mix(in srgb, var(--color-ash-grey-50) 4%, transparent) 44%,
+        transparent 72%
+      ),
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--color-dark-khaki-300) 9%, transparent),
+        transparent 34%,
+        var(--popover-frost-shade) 100%
+      ),
+      linear-gradient(var(--popover-canvas), var(--popover-canvas)),
+      var(--popover-surface);
+    background-color: var(--popover-canvas);
+    border: 0;
+    -webkit-backdrop-filter: blur(30px) saturate(175%) contrast(1.06);
+    backdrop-filter: blur(30px) saturate(175%) contrast(1.06);
+    box-shadow: none;
+    overflow: hidden;
+    transition: none;
+  }
+
+  .popover-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 2px,
+        var(--popover-frost-grain) 3px
+      );
+    opacity: 0.28;
+    mix-blend-mode: overlay;
+  }
+
+  .popover-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    border: 1px solid var(--popover-surface-border);
+    border-radius: inherit;
+  }
+
+  .popover-surface > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  html[data-window="popover"] .glass {
+    background:
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-ash-grey-50) 8%, transparent),
+        transparent
+      ),
+      var(--glass);
+    -webkit-backdrop-filter: blur(22px) saturate(180%) contrast(1.04);
+    backdrop-filter: blur(22px) saturate(180%) contrast(1.04);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  .shadow-raised {
+    box-shadow: var(--shadow-raised);
+  }
+
+  .mobile-status-fade,
+  .mobile-nav-fade {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .mobile-status-fade,
+    .mobile-nav-fade {
+      position: fixed;
+      left: 0;
+      right: 0;
+      z-index: 30;
+      display: block;
+      pointer-events: none;
+    }
+
+    .mobile-status-fade {
+      top: 0;
+      height: calc(env(safe-area-inset-top, 0px) + 1rem);
+      background:
+        linear-gradient(
+          to bottom,
+          var(--background) 0%,
+          color-mix(in srgb, var(--background) 92%, transparent) 72%,
+          transparent 100%
+        );
+    }
+
+    .mobile-nav-fade {
+      bottom: 0;
+      height: calc(env(safe-area-inset-bottom, 0px) + 8.5rem);
+      background:
+        linear-gradient(
+          to top,
+          var(--background) 0%,
+          color-mix(in srgb, var(--background) 94%, transparent) 48%,
+          color-mix(in srgb, var(--background) 58%, transparent) 76%,
+          transparent 100%
+        );
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f0f4f2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="LANVibe" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/lanvibe-icon-32.png" />
+    <link rel="apple-touch-icon" href="/lanvibe-icon-128.png" />
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        const metadata = window.__TAURI_INTERNALS__?.metadata;
+        const label = metadata?.currentWindow?.label;
+
+        if (params.get("window") === "popover" || label === "popover") {
+          document.documentElement.dataset.window = "popover";
+        }
+
+        if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = "dark";
+        } else {
+          document.documentElement.style.colorScheme = "light";
+        }
+      })();
+    </script>
+    <style>
+      html,
+      body,
+      #root {
+        background-color: #f0f4f2;
+      }
+
+      html.dark,
+      html.dark body,
+      html.dark #root {
+        background-color: #141204;
+      }
+
+      html[data-window="popover"],
+      html[data-window="popover"] body,
+      html[data-window="popover"] #root {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+
+      html[data-window="popover"] body {
+        margin: 0;
+        min-height: 0;
+        overflow: hidden;
+        transition: none !important;
+      }
+
+      html[data-window="popover"] .popover-surface {
+        background:
+          linear-gradient(180deg, rgb(240 244 242 / 0.12), rgb(240 244 242 / 0.02) 36%, rgb(240 244 242 / 0)),
+          linear-gradient(rgb(20 18 4 / 0.76), rgb(20 18 4 / 0.76)),
+          rgb(20 18 4 / 0.34);
+        background-color: rgb(20 18 4 / 0.76);
+        -webkit-backdrop-filter: blur(28px) saturate(175%);
+        backdrop-filter: blur(28px) saturate(175%);
+        transition: none !important;
+      }
+    </style>
+    <title>LANVibe</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
