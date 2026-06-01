@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { inTauri, listDevices, listFavorites, listServices, startScan } from "@/api";
+import {
+  inTauri,
+  listDevices,
+  listFavorites,
+  listServices,
+  reorderFavorites,
+  startScan,
+} from "@/api";
 import type { Device, Service } from "@/types";
 
 /**
@@ -46,6 +53,21 @@ export function usePopoverData() {
     }
   }, [reload]);
 
+  const reorder = useCallback(
+    async (orderedKeys: string[]) => {
+      const previous = favorites;
+      setFavorites(orderedKeys);
+      try {
+        const saved = await reorderFavorites(orderedKeys);
+        setFavorites(saved);
+      } catch (cause) {
+        setFavorites(previous);
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [favorites]
+  );
+
   useEffect(() => {
     void reload();
   }, [reload]);
@@ -65,6 +87,13 @@ export function usePopoverData() {
       if (disposed) unlistenServices();
       else cleanups.push(unlistenServices);
 
+      const unlistenFavorites = await listen<string[]>("favorites-updated", ({ payload }) => {
+        setFavorites(payload);
+        void reload();
+      });
+      if (disposed) unlistenFavorites();
+      else cleanups.push(unlistenFavorites);
+
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const unlistenFocus = await getCurrentWindow().onFocusChanged(
         ({ payload: focused }) => {
@@ -81,5 +110,5 @@ export function usePopoverData() {
     };
   }, [reload]);
 
-  return { favorites, services, devices, loading, scanning, error, reload, scan };
+  return { favorites, services, devices, loading, scanning, error, reload, scan, reorder };
 }

@@ -169,6 +169,11 @@ pub fn resize_popover(app: AppHandle, favorite_count: usize, loading: bool) {
 }
 
 #[tauri::command]
+pub fn resize_popover_to_content_height(app: AppHandle, height: u32) {
+    crate::tray::resize_popover_to_content_height(&app, height);
+}
+
+#[tauri::command]
 pub async fn get_favicon(
     state: TauriState<'_, SharedState>,
     origin: String,

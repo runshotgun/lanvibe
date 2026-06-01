@@ -8,7 +8,7 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, services::ServeDir};
 
@@ -42,7 +42,7 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
             "/api/settings",
             get(api::http_get_settings).patch(api::http_update_settings),
         )
-        .fallback_service(ServeDir::new(dist_dir()).append_index_html_on_directories(true))
+        .fallback_service(ServeDir::new(dist_dir(&app)).append_index_html_on_directories(true))
         .layer(CorsLayer::permissive())
         .layer(map_response(add_no_store_headers))
         .with_state(ApiState { app, state });
@@ -80,14 +80,25 @@ async fn bind_with_fallback(bind: &str, preferred_port: u16) -> Result<(TcpListe
     ))
 }
 
-fn dist_dir() -> PathBuf {
-    let manifest_dist = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist");
-    if manifest_dist.exists() {
-        return manifest_dist;
+fn dist_dir(app: &AppHandle) -> PathBuf {
+    let mut candidates = Vec::new();
+
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist"));
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("_up_").join("dist"));
+            candidates.push(parent.join("dist"));
+        }
     }
 
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|parent| parent.join("dist")))
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join("_up_").join("dist"));
+        candidates.push(resource_dir.join("dist"));
+    }
+
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.join("index.html").exists())
         .unwrap_or_else(|| PathBuf::from("dist"))
 }

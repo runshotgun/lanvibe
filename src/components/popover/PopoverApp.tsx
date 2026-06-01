@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
-import { Maximize2, RefreshCw, Star, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownUp, Check, Maximize2, RefreshCw, Star, X } from "lucide-react";
 
-import { closePopover, openMainWindow, openService, resizePopover } from "@/api";
+import {
+  closePopover,
+  openMainWindow,
+  openService,
+  resizePopover,
+  resizePopoverToContentHeight,
+} from "@/api";
 import { lanvibeLogoUrl } from "@/brand";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FavoriteTile, serviceOrigin } from "@/components/favorites/FavoriteTile";
+import { ReorderableFavoritesGrid } from "@/components/favorites/ReorderableFavoritesGrid";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,9 +30,11 @@ async function openDashboard() {
 }
 
 export function PopoverApp() {
-  const { favorites, services, devices, loading, scanning, error, scan } =
+  const { favorites, services, devices, loading, scanning, error, scan, reorder } =
     usePopoverData();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
 
   const favoriteServices = useMemo(() => {
     const byKey = new Map(services.map((service) => [serviceKey(service), service]));
@@ -44,6 +53,24 @@ export function PopoverApp() {
     void resizePopover(favoriteServices.length, loading);
   }, [favoriteServices.length, loading]);
 
+  useEffect(() => {
+    if (!surfaceRef.current) return;
+
+    const resize = () => {
+      if (!surfaceRef.current) return;
+      void resizePopoverToContentHeight(surfaceRef.current.scrollHeight);
+    };
+
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(surfaceRef.current);
+    return () => observer.disconnect();
+  }, [editing, favoriteServices.length, loading, error, actionError]);
+
+  useEffect(() => {
+    if (favoriteServices.length < 2) setEditing(false);
+  }, [favoriteServices.length]);
+
   const openFavorite = async (service: Service) => {
     try {
       setActionError(null);
@@ -55,7 +82,10 @@ export function PopoverApp() {
   };
 
   return (
-    <div className="popover-surface fixed inset-0 flex min-h-0 flex-col overflow-hidden text-popover-foreground">
+    <div
+      ref={surfaceRef}
+      className="popover-surface fixed inset-0 flex min-h-0 flex-col overflow-hidden text-popover-foreground"
+    >
       <header className="flex items-center gap-2 border-b border-border/60 px-3 py-2.5">
         <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg bg-card shadow-soft ring-1 ring-border/70">
           <img
@@ -85,6 +115,17 @@ export function PopoverApp() {
           >
             <RefreshCw className={cn("size-4", scanning && "animate-spin")} />
           </Button>
+          {favoriteServices.length > 1 ? (
+            <Button
+              variant={editing ? "default" : "tactile"}
+              size="icon-sm"
+              onClick={() => setEditing((value) => !value)}
+              aria-label={editing ? "Finish reordering" : "Reorder favorites"}
+              title={editing ? "Done" : "Reorder favorites"}
+            >
+              {editing ? <Check className="size-4" /> : <ArrowDownUp className="size-4" />}
+            </Button>
+          ) : null}
           <Button
             variant="tactile"
             size="icon-sm"
@@ -133,6 +174,15 @@ export function PopoverApp() {
               icon={<Star />}
               title="No favorites yet"
               body="Star a service in the dashboard to pin it here for one-click access."
+            />
+          ) : editing ? (
+            <ReorderableFavoritesGrid
+              services={favoriteServices}
+              devices={devices}
+              favicons={favicons}
+              compact
+              onReorder={(orderedKeys) => void reorder(orderedKeys)}
+              onOpen={openFavorite}
             />
           ) : (
             <div className="grid grid-cols-2 gap-2">

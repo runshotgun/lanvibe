@@ -126,7 +126,7 @@ pub fn apply_popover_frost(window: &WebviewWindow) {
         accent_flags: 2,
         // ABGR: alpha first, then blue/green/red. Keep this fairly transparent;
         // CSS supplies the readable tint while Windows supplies the real blur.
-        gradient_color: 0x26160f0e,
+        gradient_color: 0x18160f0e,
         animation_id: 0,
     };
 
@@ -143,7 +143,7 @@ pub fn apply_popover_frost(window: &WebviewWindow) {
         let mut fallback_policy = AccentPolicy {
             accent_state: ACCENT_ENABLE_BLURBEHIND,
             accent_flags: 2,
-            gradient_color: 0x26160f0e,
+            gradient_color: 0x18160f0e,
             animation_id: 0,
         };
         let mut fallback_data = WindowCompositionAttribData {

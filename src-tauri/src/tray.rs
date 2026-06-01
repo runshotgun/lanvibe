@@ -214,6 +214,21 @@ pub fn resize_popover(app: &AppHandle, favorite_count: usize, loading: bool) {
     }
 }
 
+pub fn resize_popover_to_content_height(app: &AppHandle, height: u32) {
+    if let Some(window) = app.get_webview_window("popover") {
+        let height = height.clamp(POPOVER_MIN_HEIGHT, POPOVER_MAX_HEIGHT);
+        let _ = window.set_size(Size::Logical(LogicalSize::new(
+            POPOVER_WIDTH as f64,
+            height as f64,
+        )));
+        crate::native_effects::apply_popover_frost(&window);
+        if POPOVER_OPEN.load(Ordering::SeqCst) {
+            let _ = position_window_near_tray(app, &window);
+            crate::native_effects::apply_popover_shape(&window);
+        }
+    }
+}
+
 /// Blur handler. Closes the popover so it behaves like a menu, but ignores the
 /// transient focus loss that Windows fires immediately after a tray-show.
 pub fn hide_popover_on_blur(app: &AppHandle) {

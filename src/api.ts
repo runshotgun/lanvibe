@@ -160,6 +160,14 @@ export async function resizePopover(favoriteCount: number, loading: boolean): Pr
   }
 }
 
+export async function resizePopoverToContentHeight(height: number): Promise<void> {
+  if (inTauri()) {
+    await invokeCommand<void>("resize_popover_to_content_height", {
+      height: Math.ceil(height),
+    });
+  }
+}
+
 export async function openService(url: string): Promise<void> {
   if (inTauri()) {
     await invokeCommand<void>("open_url", { url });

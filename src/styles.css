@@ -245,8 +245,8 @@
   --tactile-hover: linear-gradient(rgba(13, 13, 13, 0.05), rgba(13, 13, 13, 0.05));
 
   /* Tray popover surface: instant frosted tint from first paint. */
-  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 8%, transparent);
-  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 16%, transparent);
+  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 4%, transparent);
+  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 8%, transparent);
   --popover-surface-border: color-mix(in srgb, var(--color-ash-grey-50) 20%, transparent);
   --popover-frost-highlight: color-mix(in srgb, white 24%, transparent);
   --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-600) 8%, transparent);
@@ -347,8 +347,8 @@
   --tactile-hover: linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08));
 
   /* Darker, low-opacity surface drawn by CSS immediately. */
-  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 8%, transparent);
-  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 16%, transparent);
+  --popover-surface: color-mix(in srgb, var(--color-lanvibe-black) 4%, transparent);
+  --popover-canvas: color-mix(in srgb, var(--color-lanvibe-black) 8%, transparent);
   --popover-surface-border: color-mix(in srgb, var(--color-ash-grey-200) 14%, transparent);
   --popover-frost-highlight: color-mix(in srgb, var(--color-ash-grey-50) 10%, transparent);
   --popover-frost-shade: color-mix(in srgb, var(--color-dark-khaki-950) 10%, transparent);

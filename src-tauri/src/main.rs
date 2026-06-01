@@ -109,7 +109,8 @@ fn main() {
             api::get_favicon,
             api::close_popover,
             api::open_main_window,
-            api::resize_popover
+            api::resize_popover,
+            api::resize_popover_to_content_height
         ])
         .run(tauri::generate_context!())
         .expect("failed to run LANVibe");
