@@ -2,6 +2,9 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use axum::{
+    http::{header, HeaderValue},
+    middleware::map_response,
+    response::Response,
     routing::{get, patch, post},
     Router,
 };
@@ -38,10 +41,22 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
         )
         .fallback_service(ServeDir::new(dist_dir()).append_index_html_on_directories(true))
         .layer(CorsLayer::permissive())
+        .layer(map_response(add_no_store_headers))
         .with_state(ApiState { app, state });
 
     axum::serve(listener, router).await?;
     Ok(())
+}
+
+async fn add_no_store_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, no-cache, must-revalidate, proxy-revalidate"),
+    );
+    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
+    response
 }
 
 async fn bind_with_fallback(bind: &str, preferred_port: u16) -> Result<(TcpListener, u16)> {
