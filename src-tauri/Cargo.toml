@@ -1,6 +1,6 @@
 [package]
 name = "lanvibe"
-version = "0.1.9"
+version = "0.1.10"
 description = "Discover and reopen web UIs running on selected LAN devices"
 authors = ["TheKeven"]
 license = ""
