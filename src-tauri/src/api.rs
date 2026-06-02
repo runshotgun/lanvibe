@@ -4,6 +4,8 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
+#[cfg(target_os = "windows")]
+use std::path::Path as StdPath;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
@@ -436,6 +438,7 @@ async fn run_update_task(app: AppHandle, state: SharedState) -> Result<(), Strin
     let current_version = update.current_version.clone();
     let latest_version = update.version.clone();
     let previous = state.update_status.read().await.clone();
+
     publish_update_status(
         &app,
         state.clone(),
@@ -460,8 +463,8 @@ async fn run_update_task(app: AppHandle, state: SharedState) -> Result<(), Strin
     let progress_started = state.update_status.read().await.started_at.clone();
     let progress_downloaded = downloaded.clone();
 
-    update
-        .download_and_install(
+    let update_bytes = update
+        .download(
             move |chunk_len, total_bytes| {
                 let downloaded_bytes = progress_downloaded
                     .fetch_add(chunk_len as u64, Ordering::AcqRel)
@@ -519,6 +522,15 @@ async fn run_update_task(app: AppHandle, state: SharedState) -> Result<(), Strin
         .await
         .map_err(to_string)?;
 
+    #[cfg(target_os = "windows")]
+    if windows_program_files_install_requires_elevation() {
+        // Program Files MSI installs need UAC; Tauri's default "open" launch
+        // exits into a quiet, non-elevated msiexec failure.
+        install_windows_msi_update_elevated(&update, &update_bytes)?;
+    }
+
+    update.install(update_bytes).map_err(to_string)?;
+
     let previous = state.update_status.read().await.clone();
     publish_update_status(
         &app,
@@ -538,6 +550,160 @@ async fn run_update_task(app: AppHandle, state: SharedState) -> Result<(), Strin
 
     app.request_restart();
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn windows_program_files_install_requires_elevation() -> bool {
+    !windows_process_is_elevated()
+        && std::env::current_exe()
+            .map(|path| windows_path_is_under_program_files(&path))
+            .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn install_windows_msi_update_elevated(
+    update: &tauri_plugin_updater::Update,
+    bytes: &[u8],
+) -> Result<(), String> {
+    if !update
+        .download_url
+        .path()
+        .to_ascii_lowercase()
+        .ends_with(".msi")
+    {
+        return Err(
+            "LANVibe is installed in Program Files, so Windows needs Administrator approval for this update. Download the latest installer from GitHub and run it as Administrator."
+                .to_string(),
+        );
+    }
+
+    let installer_path = persist_windows_update_installer(&update.version, bytes)?;
+    shell_execute_windows_msi_update_elevated(&installer_path)?;
+    std::process::exit(0);
+}
+
+#[cfg(target_os = "windows")]
+fn persist_windows_update_installer(
+    version: &str,
+    bytes: &[u8],
+) -> Result<std::path::PathBuf, String> {
+    let safe_version = version
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let path = std::env::temp_dir().join(format!(
+        "LANVibe_{safe_version}_{}_x64_en-US.msi",
+        std::process::id()
+    ));
+    std::fs::write(&path, bytes).map_err(to_string)?;
+    Ok(path)
+}
+
+#[cfg(target_os = "windows")]
+fn shell_execute_windows_msi_update_elevated(installer_path: &StdPath) -> Result<(), String> {
+    use std::ffi::{OsStr, OsString};
+    use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOW};
+
+    let msiexec = std::env::var_os("SYSTEMROOT").map_or_else(
+        || OsString::from("msiexec.exe"),
+        |root| {
+            let mut path = std::path::PathBuf::from(root);
+            path.push("System32");
+            path.push("msiexec.exe");
+            path.into_os_string()
+        },
+    );
+    let parameters = OsString::from(format!(
+        "/i \"{}\" /quiet /promptrestart AUTOLAUNCHAPP=True",
+        installer_path.display()
+    ));
+    let verb = encode_windows_wide(OsStr::new("runas"));
+    let file = encode_windows_wide(&msiexec);
+    let parameters = encode_windows_wide(&parameters);
+
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            file.as_ptr(),
+            parameters.as_ptr(),
+            std::ptr::null(),
+            SW_SHOW,
+        )
+    };
+
+    if result as isize <= 32 {
+        return Err(format!(
+            "Windows did not allow the elevated installer to start. ShellExecuteW returned {result:?}."
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn encode_windows_wide(value: &std::ffi::OsStr) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn windows_process_is_elevated() -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    unsafe {
+        let mut token = std::ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
+            return false;
+        }
+
+        let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
+        let mut returned_size = 0;
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            &mut elevation as *mut _ as *mut _,
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut returned_size,
+        ) != 0;
+
+        let _ = CloseHandle(token);
+        ok && elevation.TokenIsElevated != 0
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_path_is_under_program_files(path: &StdPath) -> bool {
+    ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]
+        .into_iter()
+        .filter_map(std::env::var_os)
+        .map(std::path::PathBuf::from)
+        .any(|root| windows_path_starts_with(path, &root))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_path_starts_with(path: &StdPath, root: &StdPath) -> bool {
+    let path = windows_normalized_path(path);
+    let root = windows_normalized_path(root);
+    path == root || path.starts_with(&(root + "/"))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_normalized_path(path: &StdPath) -> String {
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .trim_end_matches('/')
+        .to_ascii_lowercase()
 }
 
 async fn publish_update_status(app: &AppHandle, state: SharedState, status: UpdateStatusView) {

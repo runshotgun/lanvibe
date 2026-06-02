@@ -2312,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "lanvibe"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "axum",
@@ -2340,6 +2340,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tower-http",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
