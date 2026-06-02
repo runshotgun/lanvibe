@@ -406,25 +406,6 @@ pub async fn delete_unselected_devices_without_services(
     Ok(())
 }
 
-pub async fn delete_devices_with_dependents(pool: &SqlitePool, ids: &[String]) -> Result<()> {
-    for id in ids {
-        sqlx::query("DELETE FROM favorites WHERE service_key LIKE ?")
-            .bind(format!("{id}:%"))
-            .execute(pool)
-            .await?;
-        sqlx::query("DELETE FROM services WHERE device_id = ?")
-            .bind(id)
-            .execute(pool)
-            .await?;
-        sqlx::query("DELETE FROM devices WHERE id = ?")
-            .bind(id)
-            .execute(pool)
-            .await?;
-    }
-
-    Ok(())
-}
-
 pub async fn list_favorite_keys(pool: &SqlitePool) -> Result<Vec<String>> {
     let rows =
         sqlx::query("SELECT service_key FROM favorites ORDER BY sort_order ASC, created_at ASC")

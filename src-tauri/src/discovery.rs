@@ -81,6 +81,16 @@ pub async fn discover_once(state: SharedState, app: Option<AppHandle>) -> Result
 async fn discover_once_inner(state: SharedState, app: Option<AppHandle>) -> Result<Vec<Device>> {
     let mut discovered = BTreeMap::<String, DiscoveredDevice>::new();
 
+    for mut device in local_discovered_devices_from_addresses(local_ipv4_addresses(), None) {
+        // The host belongs in the device list because users need one place to
+        // select, rename, and scan services running on this machine too. The
+        // scanner has a separate guard that skips LANVibe's own dashboard port.
+        if device.hostname.is_none() {
+            device.hostname = local_hostname(&device.ip).await;
+        }
+        discovered.insert(device.ip.clone(), device);
+    }
+
     for device in arp_devices().await? {
         discovered.insert(device.ip.clone(), device);
     }
@@ -192,6 +202,24 @@ fn usable_interface_ipv4_addresses() -> Vec<Ipv4Addr> {
 
 pub fn is_local_ip(ip: Ipv4Addr) -> bool {
     local_ipv4_addresses().into_iter().any(|local| local == ip)
+}
+
+fn local_discovered_devices_from_addresses(
+    addresses: impl IntoIterator<Item = Ipv4Addr>,
+    hostname: Option<String>,
+) -> Vec<DiscoveredDevice> {
+    addresses
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|ip| DiscoveredDevice {
+            ip: ip.to_string(),
+            hostname: hostname.clone(),
+            mac: None,
+            vendor: None,
+            source: "local".to_string(),
+        })
+        .collect()
 }
 
 async fn arp_devices() -> Result<Vec<DiscoveredDevice>> {
@@ -435,28 +463,37 @@ fn is_on_usable_local_subnet(ip: Ipv4Addr) -> bool {
 
 async fn prune_unusable_device_records(state: &SharedState) -> Result<()> {
     let devices = db::list_devices(&state.pool).await?;
-    let mut local_ids = Vec::new();
     let mut stale_ids = Vec::new();
 
     for device in devices {
         if let Ok(ip) = device.ip.parse::<Ipv4Addr>() {
-            if is_local_ip(ip) {
-                local_ids.push(device.id);
-                continue;
-            }
-
-            let invalid_ip = !is_discoverable_device_ip(ip);
-            let stale_off_subnet = !is_on_usable_local_subnet(ip);
-            let unusable_mac = is_unusable_mac(device.mac.as_deref());
-
-            if invalid_ip || stale_off_subnet || unusable_mac {
+            if should_delete_device_record(
+                ip,
+                device.mac.as_deref(),
+                is_local_ip(ip),
+                is_on_usable_local_subnet(ip),
+            ) {
                 stale_ids.push(device.id);
             }
         }
     }
 
-    db::delete_devices_with_dependents(&state.pool, &local_ids).await?;
     db::delete_unselected_devices_without_services(&state.pool, &stale_ids).await
+}
+
+fn should_delete_device_record(
+    ip: Ipv4Addr,
+    mac: Option<&str>,
+    is_local: bool,
+    on_usable_local_subnet: bool,
+) -> bool {
+    if is_local {
+        // Local host records are synthetic but intentional. Keeping them lets
+        // the user manage services on this machine alongside other LAN devices.
+        return false;
+    }
+
+    !is_discoverable_device_ip(ip) || !on_usable_local_subnet || is_unusable_mac(mac)
 }
 
 fn is_usable_lan_interface(name: &str, ip: Ipv4Addr) -> bool {
@@ -551,7 +588,8 @@ mod tests {
 
     use super::{
         device_discovery_repeat_interval, is_discoverable_device_ip, is_unusable_mac,
-        is_usable_lan_interface, parse_arp_output, parse_dynamic_arp_interface_ips,
+        is_usable_lan_interface, local_discovered_devices_from_addresses, parse_arp_output,
+        parse_dynamic_arp_interface_ips, should_delete_device_record,
     };
 
     #[test]
@@ -624,6 +662,31 @@ Interface: 192.168.1.100 --- 0x19
         assert!(!is_usable_lan_interface(
             "Ethernet",
             Ipv4Addr::new(169, 254, 1, 20)
+        ));
+    }
+
+    #[test]
+    fn creates_local_host_devices_for_usable_interfaces() {
+        let devices = local_discovered_devices_from_addresses(
+            [Ipv4Addr::new(192, 168, 1, 100), Ipv4Addr::new(10, 0, 0, 20)],
+            Some("lanvibe-host".to_string()),
+        );
+
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].ip, "10.0.0.20");
+        assert_eq!(devices[0].hostname.as_deref(), Some("lanvibe-host"));
+        assert_eq!(devices[0].source, "local");
+        assert_eq!(devices[1].ip, "192.168.1.100");
+        assert_eq!(devices[1].source, "local");
+    }
+
+    #[test]
+    fn keeps_local_host_device_records_during_pruning() {
+        assert!(!should_delete_device_record(
+            Ipv4Addr::new(192, 168, 1, 100),
+            None,
+            true,
+            true,
         ));
     }
 
