@@ -21,6 +21,16 @@ npm run tauri -- dev
 
 This project requires the Rust toolchain for Tauri builds. Install it from <https://rustup.rs/>.
 
+On macOS, local release builds default to the `.app` bundle and skip signed updater artifacts because
+Finder-based DMG decoration can hang on some machines during development, and updater signing requires
+the private release key. To build the local macOS app bundle directly:
+
+```bash
+npm run build:mac
+```
+
+The GitHub release workflow still builds the signed macOS DMG explicitly.
+
 ## Releases and updates
 
 LANVibe uses Tauri's signed updater with GitHub Releases. Release artifacts are built by

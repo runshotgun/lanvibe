@@ -439,13 +439,23 @@
   html[data-window="popover"] body {
     background: transparent;
     background-image: none;
+    border-radius: var(--popover-corner-radius);
+    clip-path: inset(0 round var(--popover-corner-radius));
+    height: 100dvh;
     min-height: 0;
+    overflow: hidden;
     transition: none;
+    width: 100vw;
   }
 
   html[data-window="popover"] #root {
-    min-height: 100dvh;
     background-color: transparent;
+    border-radius: inherit;
+    clip-path: inherit;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    width: 100vw;
   }
 
   /* Respect notches / home indicators when running as an installed webapp */
@@ -740,3 +750,52 @@
   }
 }
 
+html[data-window="popover"],
+html[data-window="popover"] body,
+html[data-window="popover"] #root {
+  background: transparent !important;
+}
+
+html[data-window="popover"] .popover-surface {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.13),
+      rgba(255, 255, 255, 0.04) 46%,
+      rgba(255, 255, 255, 0.02)
+    ),
+    rgba(246, 248, 250, 0.16) !important;
+  background-color: rgba(246, 248, 250, 0.16) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-window="popover"] .popover-surface::before {
+  opacity: 0.14;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-window="popover"] .popover-surface {
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0.025) 46%,
+        rgba(0, 0, 0, 0.04)
+      ),
+      rgba(22, 24, 26, 0.18) !important;
+    background-color: rgba(22, 24, 26, 0.18) !important;
+  }
+}
+
+html.dark[data-window="popover"] .popover-surface {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.025) 46%,
+      rgba(0, 0, 0, 0.04)
+    ),
+    rgba(22, 24, 26, 0.18) !important;
+  background-color: rgba(22, 24, 26, 0.18) !important;
+}

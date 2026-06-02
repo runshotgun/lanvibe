@@ -2322,6 +2322,9 @@ dependencies = [
  "futures",
  "get_if_addrs",
  "image",
+ "objc2-app-kit",
+ "objc2-quartz-core",
+ "objc2-web-kit",
  "open",
  "regex",
  "reqwest 0.12.28",
@@ -2706,6 +2709,7 @@ dependencies = [
  "objc2",
  "objc2-core-foundation",
  "objc2-foundation",
+ "objc2-quartz-core",
 ]
 
 [[package]]

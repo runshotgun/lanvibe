@@ -27,6 +27,11 @@ fn main() {
             None,
         ))
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            let _ = app
+                .handle()
+                .set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let data_dir = app.path().app_data_dir()?;
             let state = tauri::async_runtime::block_on(AppState::initialize(data_dir))?;
             let state = Arc::new(state);

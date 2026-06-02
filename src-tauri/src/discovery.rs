@@ -195,24 +195,37 @@ pub fn is_local_ip(ip: Ipv4Addr) -> bool {
 }
 
 async fn arp_devices() -> Result<Vec<DiscoveredDevice>> {
-    let output = if cfg!(target_os = "windows") {
+    let mut command = if cfg!(target_os = "windows") {
         let mut command = Command::new("arp");
         hide_tokio_command_window(&mut command);
-        command.arg("-a").output().await?
+        command.arg("-a");
+        command
     } else if command_exists("ip").await {
-        Command::new("ip").arg("neigh").output().await?
+        let mut command = Command::new("ip");
+        command.arg("neigh");
+        command
+    } else if cfg!(target_os = "macos") {
+        let mut command = Command::new("arp");
+        command.arg("-an");
+        command
     } else {
-        Command::new("arp").arg("-a").output().await?
+        let mut command = Command::new("arp");
+        command.arg("-a");
+        command
     };
 
+    let output = match time::timeout(Duration::from_secs(3), command.output()).await {
+        Ok(output) => output?,
+        Err(_) => return Ok(Vec::new()),
+    };
     let text = String::from_utf8_lossy(&output.stdout);
     Ok(parse_arp_output(&text))
 }
 
 fn parse_arp_output(text: &str) -> Vec<DiscoveredDevice> {
     let ip_re = Regex::new(r"(?P<ip>(?:\d{1,3}\.){3}\d{1,3})").expect("valid ip regex");
-    let mac_re = Regex::new(r"(?i)(?P<mac>[0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2})")
-        .expect("valid mac regex");
+    let mac_re =
+        Regex::new(r"(?i)(?P<mac>[0-9a-f]{1,2}(?:[:-][0-9a-f]{1,2}){5})").expect("valid mac regex");
     let interface_re =
         Regex::new(r"(?i)^interface:\s+(?P<ip>(?:\d{1,3}\.){3}\d{1,3})").expect("valid regex");
     let usable_interfaces = usable_interface_ipv4_addresses()
@@ -222,6 +235,10 @@ fn parse_arp_output(text: &str) -> Vec<DiscoveredDevice> {
 
     text.lines()
         .filter_map(move |line| {
+            if line.to_ascii_lowercase().contains("(incomplete)") {
+                return None;
+            }
+
             if let Some(interface) = interface_re.captures(line) {
                 current_interface_allowed = interface
                     .name("ip")
@@ -238,9 +255,12 @@ fn parse_arp_output(text: &str) -> Vec<DiscoveredDevice> {
             let mac = mac_re
                 .captures(line)
                 .and_then(|captures| captures.name("mac"))
-                .map(|value| value.as_str().replace('-', ":").to_ascii_lowercase());
+                .and_then(|value| normalize_mac(value.as_str()));
             let parsed_ip = ip.parse::<Ipv4Addr>().ok()?;
-            if !is_discoverable_device_ip(parsed_ip) || is_unusable_mac(mac.as_deref()) {
+            if is_local_ip(parsed_ip)
+                || !is_discoverable_device_ip(parsed_ip)
+                || is_unusable_mac(mac.as_deref())
+            {
                 return None;
             }
             Some(DiscoveredDevice {
@@ -252,6 +272,26 @@ fn parse_arp_output(text: &str) -> Vec<DiscoveredDevice> {
             })
         })
         .collect()
+}
+
+fn normalize_mac(value: &str) -> Option<String> {
+    let parts = value
+        .replace('-', ":")
+        .split(':')
+        .map(|part| u8::from_str_radix(part, 16).ok())
+        .collect::<Option<Vec<_>>>()?;
+
+    if parts.len() != 6 {
+        return None;
+    }
+
+    Some(
+        parts
+            .into_iter()
+            .map(|part| format!("{part:02x}"))
+            .collect::<Vec<_>>()
+            .join(":"),
+    )
 }
 
 async fn ping_sweep() -> Vec<String> {
@@ -395,23 +435,28 @@ fn is_on_usable_local_subnet(ip: Ipv4Addr) -> bool {
 
 async fn prune_unusable_device_records(state: &SharedState) -> Result<()> {
     let devices = db::list_devices(&state.pool).await?;
-    let ids = devices
-        .into_iter()
-        .filter_map(|device| {
-            let ip = device.ip.parse::<Ipv4Addr>().ok()?;
+    let mut local_ids = Vec::new();
+    let mut stale_ids = Vec::new();
+
+    for device in devices {
+        if let Ok(ip) = device.ip.parse::<Ipv4Addr>() {
+            if is_local_ip(ip) {
+                local_ids.push(device.id);
+                continue;
+            }
+
             let invalid_ip = !is_discoverable_device_ip(ip);
             let stale_off_subnet = !is_on_usable_local_subnet(ip);
             let unusable_mac = is_unusable_mac(device.mac.as_deref());
 
             if invalid_ip || stale_off_subnet || unusable_mac {
-                Some(device.id)
-            } else {
-                None
+                stale_ids.push(device.id);
             }
-        })
-        .collect::<Vec<_>>();
+        }
+    }
 
-    db::delete_unselected_devices_without_services(&state.pool, &ids).await
+    db::delete_devices_with_dependents(&state.pool, &local_ids).await?;
+    db::delete_unselected_devices_without_services(&state.pool, &stale_ids).await
 }
 
 fn is_usable_lan_interface(name: &str, ip: Ipv4Addr) -> bool {
@@ -453,6 +498,7 @@ fn interface_ips_with_dynamic_neighbors() -> Option<BTreeSet<Ipv4Addr>> {
     None
 }
 
+#[cfg(any(windows, test))]
 fn parse_dynamic_arp_interface_ips(text: &str) -> BTreeSet<Ipv4Addr> {
     let interface_re =
         Regex::new(r"(?i)^interface:\s+(?P<ip>(?:\d{1,3}\.){3}\d{1,3})").expect("valid regex");
@@ -515,6 +561,20 @@ mod tests {
         );
         assert_eq!(devices[0].ip, "192.168.1.10");
         assert_eq!(devices[0].mac.as_deref(), Some("aa:bb:cc:dd:ee:ff"));
+    }
+
+    #[test]
+    fn parses_macos_numeric_arp_lines() {
+        let devices = parse_arp_output(
+            "? (192.168.1.10) at dc:a6:32:e5:74:1d on en0 ifscope [ethernet]\n\
+             ? (192.168.1.195) at (incomplete) on en0 ifscope [ethernet]\n\
+             ? (192.168.1.205) at b0:a7:b9:ee:29:e on en0 ifscope [ethernet]",
+        );
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].ip, "192.168.1.10");
+        assert_eq!(devices[0].mac.as_deref(), Some("dc:a6:32:e5:74:1d"));
+        assert_eq!(devices[1].ip, "192.168.1.205");
+        assert_eq!(devices[1].mac.as_deref(), Some("b0:a7:b9:ee:29:0e"));
     }
 
     #[test]

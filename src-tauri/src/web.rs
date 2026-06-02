@@ -26,7 +26,10 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
     let router = Router::new()
         .route("/api/devices", get(api::http_list_devices))
         .route("/api/devices/refresh", post(api::http_refresh_devices))
-        .route("/api/devices/discovery-status", get(api::http_discovery_status))
+        .route(
+            "/api/devices/discovery-status",
+            get(api::http_discovery_status),
+        )
         .route("/api/devices/{id}", patch(api::http_update_device))
         .route("/api/services", get(api::http_list_services))
         .route(

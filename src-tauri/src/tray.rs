@@ -32,10 +32,11 @@ const POPOVER_REOPEN_GUARD: Duration = Duration::from_millis(250);
 /// Windows briefly drops focus on a window right after a tray-triggered show.
 /// Ignore blur-hide requests within this window so the popover doesn't self-close.
 const POPOVER_SHOW_GRACE: Duration = Duration::from_millis(500);
-/// Where the popover parks while "closed". We keep the window visible and
-/// simply move it far off every monitor instead of hiding it. Re-showing a
-/// hidden transparent window can otherwise flash before the WebView settles.
+/// Where the popover parks while "closed" on platforms where hiding a
+/// transparent window can flash before the WebView settles.
+#[cfg(not(target_os = "macos"))]
 const OFFSCREEN_X: i32 = -32000;
+#[cfg(not(target_os = "macos"))]
 const OFFSCREEN_Y: i32 = -32000;
 
 #[derive(Debug, Clone, Copy)]
@@ -59,6 +60,7 @@ pub fn create(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(tooltip_text(favorite_count))
         .icon(tray_icon())
+        .icon_as_template(cfg!(target_os = "macos"))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
@@ -155,6 +157,16 @@ fn tooltip_text(count: usize) -> String {
 
 /// Make the popover visible but parked off-screen at startup, so WebView
 /// startup happens before the user opens it from the tray.
+#[cfg(target_os = "macos")]
+pub fn prime_popover(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("popover") {
+        let _ = window.hide();
+    }
+}
+
+/// Make the popover visible but parked off-screen at startup, so WebView
+/// startup happens before the user opens it from the tray.
+#[cfg(not(target_os = "macos"))]
 pub fn prime_popover(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("popover") {
         park_popover_offscreen(&window);
@@ -252,6 +264,16 @@ fn recently_shown() -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
+fn hide_popover_window(window: &WebviewWindow) {
+    let _ = window.hide();
+    POPOVER_OPEN.store(false, Ordering::SeqCst);
+    if let Ok(mut last) = LAST_POPOVER_HIDE.get_or_init(|| Mutex::new(None)).lock() {
+        *last = Some(Instant::now());
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
 fn hide_popover_window(window: &WebviewWindow) {
     // Park off-screen rather than hide, to keep the frosted backdrop composited.
     park_popover_offscreen(window);
@@ -261,6 +283,7 @@ fn hide_popover_window(window: &WebviewWindow) {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn park_popover_offscreen(window: &WebviewWindow) {
     let _ = window.set_position(Position::Physical(PhysicalPosition::new(
         OFFSCREEN_X,
@@ -426,6 +449,12 @@ fn clamp_to_work_area(position: i32, size: i32, min: i32, max: i32) -> i32 {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn tray_icon() -> Image<'static> {
+    macos_template_icon_from_brand().unwrap_or_else(fallback_template_icon)
+}
+
+#[cfg(not(target_os = "macos"))]
 fn tray_icon() -> Image<'static> {
     if let Some(icon) = decode_icon(include_bytes!("../icons/tray.png")) {
         return icon;
@@ -436,6 +465,30 @@ fn tray_icon() -> Image<'static> {
     }
 
     fallback_icon()
+}
+
+#[cfg(target_os = "macos")]
+fn macos_template_icon_from_brand() -> Option<Image<'static>> {
+    let icon = image::load_from_memory_with_format(
+        include_bytes!("../icons/tray.png"),
+        image::ImageFormat::Png,
+    )
+    .ok()?
+    .to_rgba8();
+    let (width, height) = icon.dimensions();
+    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+
+    for pixel in icon.pixels() {
+        let [r, g, b, a] = pixel.0;
+        let orange_brand_pixel = a > 0 && r > 180 && g > 85 && g < 220 && b < 150 && r > g;
+        if orange_brand_pixel {
+            rgba.extend_from_slice(&[255, 255, 255, a]);
+        } else {
+            rgba.extend_from_slice(&[255, 255, 255, 0]);
+        }
+    }
+
+    Some(Image::new_owned(rgba, width, height))
 }
 
 pub fn app_icon() -> Option<Image<'static>> {
@@ -452,6 +505,7 @@ fn decode_icon(bytes: &[u8]) -> Option<Image<'static>> {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn fallback_icon() -> Image<'static> {
     let size = 32usize;
     let mut rgba = Vec::with_capacity(size * size * 4);
@@ -466,6 +520,29 @@ fn fallback_icon() -> Image<'static> {
             } else {
                 rgba.extend_from_slice(&[0, 0, 0, 0]);
             }
+        }
+    }
+
+    Image::new_owned(rgba, size as u32, size as u32)
+}
+
+#[cfg(target_os = "macos")]
+fn fallback_template_icon() -> Image<'static> {
+    let size = 32usize;
+    let mut rgba = Vec::with_capacity(size * size * 4);
+    for y in 0..size {
+        for x in 0..size {
+            let in_roof = (10..=21).contains(&x) && (12..=15).contains(&y);
+            let in_base = (8..=23).contains(&x) && (18..=21).contains(&y);
+            let in_column = [(8, 11), (14, 17), (20, 23)]
+                .iter()
+                .any(|(x0, x1)| (*x0..=*x1).contains(&x) && (15..=21).contains(&y));
+            let alpha = if in_roof || in_base || in_column {
+                255
+            } else {
+                0
+            };
+            rgba.extend_from_slice(&[255, 255, 255, alpha]);
         }
     }
 

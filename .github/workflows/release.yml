@@ -19,7 +19,9 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: "--target universal-apple-darwin"
+            args: >-
+              --target universal-apple-darwin --bundles app,dmg
+              --config '{"bundle":{"createUpdaterArtifacts":true}}'
           - platform: ubuntu-22.04
             args: ""
           - platform: windows-latest

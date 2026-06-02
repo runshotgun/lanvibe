@@ -88,7 +88,7 @@ async fn fetch_favicon(origin: &str, http_timeout_ms: u64) -> Option<String> {
 /// to an absolute URL. Returns `None` when the page can't be read or has no hint.
 async fn discover_icon_url(client: &reqwest::Client, origin: &str) -> Option<String> {
     let body = client
-        .get(&format!("{origin}/"))
+        .get(format!("{origin}/"))
         .send()
         .await
         .ok()?

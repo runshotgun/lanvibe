@@ -1,6 +1,20 @@
 #[cfg(windows)]
 use tauri::WebviewWindow;
 
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSColor, NSWindow};
+#[cfg(target_os = "macos")]
+use objc2_web_kit::WKWebView;
+#[cfg(target_os = "macos")]
+use tauri::{
+    utils::config::Color,
+    window::{Effect, EffectState, EffectsBuilder},
+    WebviewWindow,
+};
+
+#[cfg(target_os = "macos")]
+const POPOVER_CORNER_RADIUS_LOGICAL_PX: f64 = 8.0;
+
 #[cfg(windows)]
 #[repr(C)]
 struct AccentPolicy {
@@ -267,8 +281,59 @@ fn composition_api() -> Option<SetWindowCompositionAttributeFn> {
     })
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn apply_popover_frost(window: &WebviewWindow) {
+    let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+    let _ = window.set_effects(
+        EffectsBuilder::new()
+            .effect(Effect::Popover)
+            .state(EffectState::Active)
+            .radius(POPOVER_CORNER_RADIUS_LOGICAL_PX)
+            .build(),
+    );
+    make_webview_transparent(window);
+    apply_content_view_mask(window);
+}
+
+#[cfg(target_os = "macos")]
+pub fn apply_popover_shape(window: &WebviewWindow) {
+    apply_content_view_mask(window);
+}
+
+#[cfg(target_os = "macos")]
+fn apply_content_view_mask(window: &WebviewWindow) {
+    let Ok(ns_window) = window.ns_window() else {
+        return;
+    };
+
+    // SAFETY: Tauri returns the live NSWindow pointer for this WebviewWindow.
+    // We only touch the window's content view layer to clip the transparent
+    // frameless popover to the same radius used by CSS and macOS vibrancy.
+    unsafe {
+        let ns_window: &NSWindow = &*ns_window.cast();
+        let Some(content_view) = ns_window.contentView() else {
+            return;
+        };
+        content_view.setWantsLayer(true);
+        let Some(layer) = content_view.layer() else {
+            return;
+        };
+        layer.setCornerRadius(POPOVER_CORNER_RADIUS_LOGICAL_PX);
+        layer.setMasksToBounds(true);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn make_webview_transparent(window: &WebviewWindow) {
+    let _ = window.with_webview(|webview| unsafe {
+        let view: &WKWebView = &*webview.inner().cast();
+        let clear = NSColor::clearColor();
+        view.setUnderPageBackgroundColor(Some(&clear));
+    });
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn apply_popover_frost(_window: &tauri::WebviewWindow) {}
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn apply_popover_shape(_window: &tauri::WebviewWindow) {}
