@@ -40,7 +40,7 @@ impl AppState {
             update_status: RwLock::new(UpdateStatusView::default()),
             update_running: AtomicBool::new(false),
             settings: RwLock::new(settings),
-            favicons: FaviconStore::new(),
+            favicons: FaviconStore::new(pool.clone()),
             pool,
         })
     }

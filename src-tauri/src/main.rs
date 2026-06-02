@@ -42,31 +42,8 @@ fn main() {
             let _ = startup::apply_launch_at_startup(app.handle(), launch_at_startup);
             tray::create(app.handle(), state.clone())?;
 
-            // Keep the native popover window transparent from birth. The visible
-            // tint is drawn immediately by CSS, while Windows supplies real
-            // compositor blur before the window is ever moved onscreen.
-            if let Some(window) = app.get_webview_window("popover") {
-                let _ = window.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
-                let _ = window.set_shadow(false);
-                let _ = window.set_decorations(false);
-                if let Some(icon) = tray::app_icon() {
-                    let _ = window.set_icon(icon);
-                }
-                native_effects::apply_popover_frost(&window);
-            }
-
-            if let Some(window) = app.get_webview_window("main") {
-                if let Some(icon) = tray::app_icon() {
-                    let _ = window.set_icon(icon);
-                }
-            }
-
-            // Park the popover visible-but-off-screen so WebView startup happens
-            // before the user opens it from the tray.
-            tray::prime_popover(app.handle());
-
             tauri::async_runtime::spawn(web::run(app.handle().clone(), state.clone()));
-            discovery::spawn_loop(app.handle().clone(), state.clone());
+            discovery::spawn_at_launch(app.handle().clone(), state.clone());
             scanner::spawn_loop(app.handle().clone(), state.clone());
             scanner::spawn_favorite_loop(app.handle().clone(), state.clone());
 
@@ -82,8 +59,7 @@ fn main() {
                 let state = window.app_handle().state::<Arc<AppState>>();
                 let settings = tauri::async_runtime::block_on(state.current_settings());
                 if settings.minimize_to_tray {
-                    api.prevent_close();
-                    let _ = window.hide();
+                    return;
                 }
             }
             WindowEvent::Focused(false) if window.label() == "popover" => {

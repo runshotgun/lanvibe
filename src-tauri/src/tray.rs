@@ -10,8 +10,9 @@ use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Rect, Size,
-    WebviewWindow,
+    utils::config::Color,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Rect, Size, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
 };
 
 use crate::{app_state::AppState, db};
@@ -32,13 +33,12 @@ const POPOVER_REOPEN_GUARD: Duration = Duration::from_millis(250);
 /// Windows briefly drops focus on a window right after a tray-triggered show.
 /// Ignore blur-hide requests within this window so the popover doesn't self-close.
 const POPOVER_SHOW_GRACE: Duration = Duration::from_millis(500);
-/// Where the popover parks while "closed" on platforms where hiding a
-/// transparent window can flash before the WebView settles.
-#[cfg(not(target_os = "macos"))]
-const OFFSCREEN_X: i32 = -32000;
-#[cfg(not(target_os = "macos"))]
-const OFFSCREEN_Y: i32 = -32000;
-
+const MAIN_WIDTH: f64 = 520.0;
+const MAIN_HEIGHT: f64 = 720.0;
+const MAIN_MIN_WIDTH: f64 = 360.0;
+const MAIN_MIN_HEIGHT: f64 = 520.0;
+const POPOVER_HIDDEN_WIDTH: f64 = 1.0;
+const POPOVER_HIDDEN_HEIGHT: f64 = 1.0;
 #[derive(Debug, Clone, Copy)]
 struct TrayAnchor {
     x: f64,
@@ -48,8 +48,10 @@ struct TrayAnchor {
 static LAST_TRAY_ANCHOR: OnceLock<Mutex<Option<TrayAnchor>>> = OnceLock::new();
 static LAST_POPOVER_HIDE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 static LAST_POPOVER_SHOW: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
-/// Whether the popover is currently parked on-screen (open) vs off-screen.
+/// Whether the popover is currently visible on-screen.
 static POPOVER_OPEN: AtomicBool = AtomicBool::new(false);
+static POPOVER_CREATING: AtomicBool = AtomicBool::new(false);
+static MAIN_CREATING: AtomicBool = AtomicBool::new(false);
 
 pub fn create(app: &AppHandle, state: Arc<AppState>) -> tauri::Result<()> {
     let launch_at_startup =
@@ -155,44 +157,42 @@ fn tooltip_text(count: usize) -> String {
     )
 }
 
-/// Make the popover visible but parked off-screen at startup, so WebView
-/// startup happens before the user opens it from the tray.
-#[cfg(target_os = "macos")]
-pub fn prime_popover(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("popover") {
-        let _ = window.hide();
-    }
-}
-
-/// Make the popover visible but parked off-screen at startup, so WebView
-/// startup happens before the user opens it from the tray.
-#[cfg(not(target_os = "macos"))]
-pub fn prime_popover(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("popover") {
-        park_popover_offscreen(&window);
-        let _ = window.show();
-    }
-}
-
 /// Left-click handler: opens the favorites popover near the tray, or closes it
 /// if already open.
 pub fn toggle_popover(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("popover") else {
-        return;
-    };
+    if let Some(window) = app.get_webview_window("popover") {
+        if POPOVER_OPEN.load(Ordering::SeqCst) {
+            hide_popover_window(&window);
+            return;
+        }
 
-    if POPOVER_OPEN.load(Ordering::SeqCst) {
-        hide_popover_window(&window);
+        if recently_hidden() {
+            return;
+        }
+
+        show_popover_window(app, &window);
         return;
     }
 
-    if recently_hidden() {
+    if recently_hidden() || POPOVER_CREATING.swap(true, Ordering::SeqCst) {
         return;
     }
 
-    // The window is already visible (primed off-screen), so opening is a
-    // reposition + focus. Position before show as a fallback for cases where
-    // the platform has hidden or recreated the WebView.
+    let app = app.clone();
+    std::thread::spawn(move || {
+        match create_popover_window(&app) {
+            Ok(window) => show_popover_window(&app, &window),
+            Err(error) => {
+                let _ = app.emit("scan-error", error.to_string());
+            }
+        }
+        POPOVER_CREATING.store(false, Ordering::SeqCst);
+    });
+}
+
+fn show_popover_window(app: &AppHandle, window: &WebviewWindow) {
+    // Position before show so the transparent WebView never appears at a stale
+    // or default desktop location.
     let _ = window.set_shadow(false);
     let _ = window.set_decorations(false);
     crate::native_effects::apply_popover_frost(&window);
@@ -209,7 +209,6 @@ pub fn toggle_popover(app: &AppHandle) {
 }
 
 /// Close the popover from the frontend (X button, opening a favorite, etc.).
-/// Parks it off-screen instead of hiding so the next open doesn't flash.
 pub fn close_popover(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("popover") {
         hide_popover_window(&window);
@@ -227,6 +226,10 @@ pub fn resize_popover(app: &AppHandle, favorite_count: usize, loading: bool) {
 }
 
 pub fn resize_popover_to_content_height(app: &AppHandle, height: u32) {
+    if !POPOVER_OPEN.load(Ordering::SeqCst) {
+        return;
+    }
+
     if let Some(window) = app.get_webview_window("popover") {
         let height = height.clamp(POPOVER_MIN_HEIGHT, POPOVER_MAX_HEIGHT);
         let _ = window.set_size(Size::Logical(LogicalSize::new(
@@ -234,10 +237,8 @@ pub fn resize_popover_to_content_height(app: &AppHandle, height: u32) {
             height as f64,
         )));
         crate::native_effects::apply_popover_frost(&window);
-        if POPOVER_OPEN.load(Ordering::SeqCst) {
-            let _ = position_window_near_tray(app, &window);
-            crate::native_effects::apply_popover_shape(&window);
-        }
+        let _ = position_window_near_tray(app, &window);
+        crate::native_effects::apply_popover_shape(&window);
     }
 }
 
@@ -271,24 +272,21 @@ fn hide_popover_window(window: &WebviewWindow) {
     if let Ok(mut last) = LAST_POPOVER_HIDE.get_or_init(|| Mutex::new(None)).lock() {
         *last = Some(Instant::now());
     }
+    let _ = window.emit("popover-hidden", ());
 }
 
 #[cfg(not(target_os = "macos"))]
 fn hide_popover_window(window: &WebviewWindow) {
-    // Park off-screen rather than hide, to keep the frosted backdrop composited.
-    park_popover_offscreen(window);
+    let _ = window.hide();
+    let _ = window.set_size(Size::Logical(LogicalSize::new(
+        POPOVER_HIDDEN_WIDTH,
+        POPOVER_HIDDEN_HEIGHT,
+    )));
     POPOVER_OPEN.store(false, Ordering::SeqCst);
     if let Ok(mut last) = LAST_POPOVER_HIDE.get_or_init(|| Mutex::new(None)).lock() {
         *last = Some(Instant::now());
     }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn park_popover_offscreen(window: &WebviewWindow) {
-    let _ = window.set_position(Position::Physical(PhysicalPosition::new(
-        OFFSCREEN_X,
-        OFFSCREEN_Y,
-    )));
+    let _ = window.emit("popover-hidden", ());
 }
 
 fn sync_popover_size_from_favorites(app: &AppHandle, window: &WebviewWindow) {
@@ -340,7 +338,76 @@ pub fn show_main_window(app: &AppHandle) {
         let _ = position_window_near_tray(app, &window);
         let _ = window.show();
         let _ = window.set_focus();
+        return;
     }
+
+    if MAIN_CREATING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        match create_main_window(&app) {
+            Ok(window) => {
+                let _ = position_window_near_tray(&app, &window);
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            Err(error) => {
+                let _ = app.emit("scan-error", error.to_string());
+            }
+        }
+        MAIN_CREATING.store(false, Ordering::SeqCst);
+    });
+}
+
+fn create_main_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .title("LANVibe")
+        .inner_size(MAIN_WIDTH, MAIN_HEIGHT)
+        .min_inner_size(MAIN_MIN_WIDTH, MAIN_MIN_HEIGHT)
+        .resizable(true)
+        .decorations(true)
+        .visible(false)
+        .build()?;
+
+    if let Some(icon) = app_icon() {
+        let _ = window.set_icon(icon);
+    }
+
+    Ok(window)
+}
+
+fn create_popover_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let window = WebviewWindowBuilder::new(
+        app,
+        "popover",
+        WebviewUrl::App("index.html?window=popover".into()),
+    )
+    .title("LANVibe")
+    .inner_size(POPOVER_WIDTH as f64, POPOVER_EMPTY_HEIGHT as f64)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .background_color(Color(0, 0, 0, 0))
+    .maximizable(false)
+    .minimizable(false)
+    .visible(false)
+    .build()?;
+
+    let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+    let _ = window.set_shadow(false);
+    let _ = window.set_decorations(false);
+    if let Some(icon) = app_icon() {
+        let _ = window.set_icon(icon);
+    }
+    sync_popover_size_from_favorites(app, &window);
+    crate::native_effects::apply_popover_frost(&window);
+
+    Ok(window)
 }
 
 fn remember_tray_anchor(event: &TrayIconEvent) {

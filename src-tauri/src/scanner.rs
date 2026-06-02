@@ -42,7 +42,7 @@ pub fn spawn_loop(app: AppHandle, state: SharedState) {
 
 pub fn spawn_favorite_loop(app: AppHandle, state: SharedState) {
     tauri::async_runtime::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(5));
+        let mut interval = time::interval(favorite_refresh_interval());
         interval.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
         loop {
@@ -52,6 +52,10 @@ pub fn spawn_favorite_loop(app: AppHandle, state: SharedState) {
             }
         }
     });
+}
+
+pub fn favorite_refresh_interval() -> Duration {
+    Duration::from_secs(30)
 }
 
 pub async fn scan_selected_devices(
@@ -475,13 +479,20 @@ fn normalize_title(raw: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
 
-    use super::{extract_page_title, extract_title, probe_port};
+    use super::{extract_page_title, extract_title, favorite_refresh_interval, probe_port};
     use crate::models::Settings;
+
+    #[test]
+    fn refreshes_favorites_every_thirty_seconds() {
+        assert_eq!(favorite_refresh_interval(), Duration::from_secs(30));
+    }
 
     #[test]
     fn extracts_html_title() {

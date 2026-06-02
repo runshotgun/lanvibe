@@ -127,6 +127,18 @@ async fn migrate(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS favicons (
+            origin TEXT PRIMARY KEY,
+            data_url TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }
 
@@ -502,6 +514,34 @@ pub async fn reorder_favorites(pool: &SqlitePool, service_keys: &[String]) -> Re
     }
 
     list_favorite_keys(pool).await
+}
+
+pub async fn cache_favicon(pool: &SqlitePool, origin: &str, data_url: &str) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO favicons(origin, data_url, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(origin) DO UPDATE SET
+            data_url = excluded.data_url,
+            updated_at = excluded.updated_at
+        "#,
+    )
+    .bind(origin)
+    .bind(data_url)
+    .bind(Utc::now().to_rfc3339())
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_cached_favicon(pool: &SqlitePool, origin: &str) -> Result<Option<String>> {
+    let row = sqlx::query("SELECT data_url FROM favicons WHERE origin = ?")
+        .bind(origin)
+        .fetch_optional(pool)
+        .await?;
+
+    Ok(row.map(|row| row.get("data_url")))
 }
 
 pub async fn list_selected_devices(pool: &SqlitePool) -> Result<Vec<Device>> {
@@ -1051,6 +1091,31 @@ mod tests {
                 "device:9090".to_string(),
                 "device:4444".to_string()
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn favicon_cache_survives_reconnects() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.sqlite3");
+        let pool = connect(&db_path).await.unwrap();
+
+        cache_favicon(
+            &pool,
+            "http://192.168.1.50:8080",
+            "data:image/png;base64,cached",
+        )
+        .await
+        .unwrap();
+        drop(pool);
+
+        let pool = connect(&db_path).await.unwrap();
+        assert_eq!(
+            get_cached_favicon(&pool, "http://192.168.1.50:8080")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("data:image/png;base64,cached")
         );
     }
 }

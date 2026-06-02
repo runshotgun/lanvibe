@@ -3,7 +3,7 @@ import { ChevronDown, Globe2 } from "lucide-react";
 import { ServiceRow } from "@/components/services/ServiceRow";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { deviceName } from "@/lib/finder";
+import { deviceName, serviceOrigin } from "@/lib/finder";
 import { cn } from "@/lib/utils";
 import type { Device, Service } from "@/types";
 
@@ -18,6 +18,7 @@ export function ServiceGroup({
   expanded,
   onToggle,
   devices,
+  favicons,
   isFavorite,
   onFavorite,
 }: {
@@ -25,6 +26,7 @@ export function ServiceGroup({
   expanded: boolean;
   onToggle: () => void;
   devices: Device[];
+  favicons: Record<string, string | null>;
   isFavorite: (service: Service) => boolean;
   onFavorite: (service: Service) => void;
 }) {
@@ -64,6 +66,7 @@ export function ServiceGroup({
                 key={service.id}
                 service={service}
                 devices={devices}
+                favicon={favicons[serviceOrigin(service)]}
                 favorite={isFavorite(service)}
                 onFavorite={onFavorite}
               />

@@ -8,7 +8,10 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::{imageops::FilterType, ImageFormat};
 use regex::Regex;
 use reqwest::redirect::Policy;
+use sqlx::SqlitePool;
 use tokio::sync::RwLock;
+
+use crate::db;
 
 /// Square pixel size we normalize favicons to before encoding them for the UI.
 const ICON_SIZE: u32 = 32;
@@ -35,15 +38,19 @@ impl CacheEntry {
 }
 
 /// In-memory favicon cache keyed by service origin (e.g. `http://192.168.1.10:8080`).
-/// Shared via `AppState`; survives for the app session only.
-#[derive(Default)]
+/// Successful fetches are also persisted in SQLite so previously seen services
+/// can render their icon immediately even when the service is offline.
 pub struct FaviconStore {
     inner: RwLock<HashMap<String, CacheEntry>>,
+    pool: SqlitePool,
 }
 
 impl FaviconStore {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: SqlitePool) -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+            pool,
+        }
     }
 
     /// Returns a PNG data URL for `origin`'s favicon, fetching on a cache miss.
@@ -55,7 +62,21 @@ impl FaviconStore {
             }
         }
 
+        if let Ok(Some(data_url)) = db::get_cached_favicon(&self.pool, origin).await {
+            self.inner.write().await.insert(
+                origin.to_string(),
+                CacheEntry {
+                    data_url: Some(data_url.clone()),
+                    fetched_at: Instant::now(),
+                },
+            );
+            return Some(data_url);
+        }
+
         let data_url = fetch_favicon(origin, http_timeout_ms).await;
+        if let Some(data_url) = &data_url {
+            let _ = db::cache_favicon(&self.pool, origin, data_url).await;
+        }
         self.inner.write().await.insert(
             origin.to_string(),
             CacheEntry {

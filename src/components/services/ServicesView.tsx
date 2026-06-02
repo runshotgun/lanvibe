@@ -9,7 +9,13 @@ import {
 import { ServicesToolbar } from "@/components/services/ServicesToolbar";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { compareIp, compareServices, serviceLabel } from "@/lib/finder";
+import { useFavicons } from "@/hooks/useFavicons";
+import {
+  compareIp,
+  compareServices,
+  serviceLabel,
+  serviceOrigin,
+} from "@/lib/finder";
 import type { Device, ScanStatus, Service } from "@/types";
 
 export function ServicesView({
@@ -74,6 +80,21 @@ export function ServicesView({
       .sort((a, b) => compareIp(a.ip, b.ip));
   }, [devices, filteredServices]);
 
+  const visibleServices = useMemo(
+    () =>
+      groups.flatMap((group) => {
+        const key = group.device?.id ?? group.ip;
+        return expandedGroups.has(key) ? group.services : [];
+      }),
+    [expandedGroups, groups]
+  );
+
+  const origins = useMemo(
+    () => visibleServices.map(serviceOrigin),
+    [visibleServices]
+  );
+  const favicons = useFavicons(origins);
+
   function toggleGroup(key: string) {
     setExpandedGroups((current) => {
       const next = new Set(current);
@@ -132,6 +153,7 @@ export function ServicesView({
                 expanded={expandedGroups.has(key)}
                 onToggle={() => toggleGroup(key)}
                 devices={devices}
+                favicons={favicons}
                 isFavorite={isFavorite}
                 onFavorite={onFavorite}
               />

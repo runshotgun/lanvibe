@@ -2,6 +2,7 @@ import { type MouseEvent } from "react";
 import { ExternalLink, Star } from "lucide-react";
 
 import { inTauri, openService } from "@/api";
+import { ServiceFavicon } from "@/components/common/ServiceFavicon";
 import { StatusDot } from "@/components/common/StatusDot";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,11 +22,13 @@ import type { Device, Service } from "@/types";
 export function ServiceRow({
   service,
   devices,
+  favicon,
   favorite,
   onFavorite,
 }: {
   service: Service;
   devices: Device[];
+  favicon?: string | null;
   favorite: boolean;
   onFavorite: (service: Service) => void;
 }) {
@@ -46,9 +49,7 @@ export function ServiceRow({
         className="flex min-w-0 flex-1 items-center gap-3 rounded-lg py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <StatusDot active={service.active} />
-        <Badge variant="secondary" className="font-mono tabular-nums">
-          {service.port}
-        </Badge>
+        <ServiceFavicon url={favicon} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">
             {titled ? service.title : serviceLabel(service, devices)}
@@ -63,8 +64,14 @@ export function ServiceRow({
               </Badge>
             ) : null}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
-            {serviceHostName(service, devices)} ▸ {service.url}
+          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="truncate">{serviceHostName(service, devices)}</span>
+            <Badge
+              variant="secondary"
+              className="shrink-0 px-1.5 py-0 font-mono text-[10px] tabular-nums"
+            >
+              {service.port}
+            </Badge>
           </span>
         </span>
         <span className="hidden shrink-0 flex-col items-end gap-0.5 sm:flex">

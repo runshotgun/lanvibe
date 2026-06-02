@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "LANVibe",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "identifier": "com.thekeven.lanvibe",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,37 +12,7 @@
   "app": {
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
-    "windows": [
-      {
-        "title": "LANVibe",
-        "label": "main",
-        "width": 520,
-        "height": 720,
-        "minWidth": 360,
-        "minHeight": 520,
-        "visible": false,
-        "resizable": true,
-        "decorations": true
-      },
-      {
-        "title": "LANVibe",
-        "label": "popover",
-        "url": "index.html?window=popover",
-        "width": 384,
-        "height": 520,
-        "visible": false,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "backgroundColor": "#00000000",
-        "backgroundThrottling": "disabled",
-        "maximizable": false,
-        "minimizable": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

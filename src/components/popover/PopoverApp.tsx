@@ -5,7 +5,6 @@ import {
   closePopover,
   openMainWindow,
   openService,
-  resizePopover,
   resizePopoverToContentHeight,
 } from "@/api";
 import { lanvibeLogoUrl } from "@/brand";
@@ -30,6 +29,10 @@ async function openDashboard() {
 }
 
 export function PopoverApp() {
+  return <PopoverContent />;
+}
+
+function PopoverContent() {
   const { favorites, services, devices, loading, scanning, error, scan, reorder } =
     usePopoverData();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -48,10 +51,6 @@ export function PopoverApp() {
     [favoriteServices]
   );
   const favicons = useFavicons(origins);
-
-  useEffect(() => {
-    void resizePopover(favoriteServices.length, loading);
-  }, [favoriteServices.length, loading]);
 
   useEffect(() => {
     if (!surfaceRef.current) return;

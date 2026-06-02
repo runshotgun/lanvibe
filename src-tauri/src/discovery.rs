@@ -26,17 +26,17 @@ use crate::{
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-pub fn spawn_loop(app: AppHandle, state: SharedState) {
+pub fn spawn_at_launch(app: AppHandle, state: SharedState) {
     tauri::async_runtime::spawn(async move {
-        loop {
-            if let Err(error) = discover_once(state.clone(), Some(app.clone())).await {
-                let _ = app.emit("scan-error", error.to_string());
-            }
-
-            let settings = state.current_settings().await;
-            time::sleep(Duration::from_secs(settings.discovery_interval_seconds)).await;
+        if let Err(error) = discover_once(state.clone(), Some(app.clone())).await {
+            let _ = app.emit("scan-error", error.to_string());
         }
     });
+}
+
+#[cfg(test)]
+pub fn device_discovery_repeat_interval() -> Option<Duration> {
+    None
 }
 
 pub async fn discover_once(state: SharedState, app: Option<AppHandle>) -> Result<Vec<Device>> {
@@ -550,9 +550,14 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use super::{
-        is_discoverable_device_ip, is_unusable_mac, is_usable_lan_interface, parse_arp_output,
-        parse_dynamic_arp_interface_ips,
+        device_discovery_repeat_interval, is_discoverable_device_ip, is_unusable_mac,
+        is_usable_lan_interface, parse_arp_output, parse_dynamic_arp_interface_ips,
     };
+
+    #[test]
+    fn does_not_repeat_device_discovery_after_launch() {
+        assert_eq!(device_discovery_repeat_interval(), None);
+    }
 
     #[test]
     fn parses_windows_arp_lines() {

@@ -1,15 +1,13 @@
-import { type MouseEvent, type ReactNode, useState } from "react";
-import { Globe } from "lucide-react";
+import { type MouseEvent, type ReactNode } from "react";
 
 import { inTauri } from "@/api";
+import { ServiceFavicon } from "@/components/common/ServiceFavicon";
 import { StatusDot } from "@/components/common/StatusDot";
 import { serviceHostName, serviceLabel } from "@/lib/finder";
 import { cn } from "@/lib/utils";
 import type { Device, Service } from "@/types";
 
-export function serviceOrigin(service: Service): string {
-  return `${service.scheme}://${service.ip}:${service.port}`;
-}
+export { serviceOrigin } from "@/lib/finder";
 
 export function FavoriteTile({
   service,
@@ -97,7 +95,7 @@ function TileContent({
   return (
     <>
       <div className="flex items-start gap-2">
-        <Favicon url={favicon} />
+        <ServiceFavicon url={favicon} />
         <StatusDot active={active} loading={loading} className="ml-auto mt-1" />
       </div>
       <div className="min-w-0">
@@ -105,26 +103,5 @@ function TileContent({
         <div className="truncate text-xs text-muted-foreground tabular-nums">{secondary}</div>
       </div>
     </>
-  );
-}
-
-function Favicon({ url }: { url?: string | null }) {
-  const [failed, setFailed] = useState(false);
-
-  if (url && !failed) {
-    return (
-      <img
-        src={url}
-        alt=""
-        className="size-8 rounded-md object-contain"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-
-  return (
-    <span className="grid size-8 place-items-center rounded-md bg-muted text-muted-foreground">
-      <Globe className="size-4" />
-    </span>
   );
 }

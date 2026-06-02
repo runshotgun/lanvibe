@@ -30,6 +30,10 @@ export function serviceKey(service: Service): string {
   return `${service.deviceId}:${service.port}`;
 }
 
+export function serviceOrigin(service: Service): string {
+  return `${service.scheme}://${service.ip}:${service.port}`;
+}
+
 export function hasPageTitle(service: Service): boolean {
   return Boolean(service.title?.trim());
 }
