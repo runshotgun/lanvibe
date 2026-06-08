@@ -16,6 +16,7 @@ export function ReorderableFavoritesGrid({
   devices,
   favicons,
   compact = false,
+  canOpenLoopbackServices = true,
   onReorder,
   onOpen,
 }: {
@@ -23,6 +24,7 @@ export function ReorderableFavoritesGrid({
   devices: Device[];
   favicons: Record<string, string | null | undefined>;
   compact?: boolean;
+  canOpenLoopbackServices?: boolean;
   onReorder: (orderedKeys: string[]) => void;
   onOpen: (service: Service) => void;
 }) {
@@ -46,6 +48,7 @@ export function ReorderableFavoritesGrid({
               devices={devices}
               favicon={favicons[serviceOrigin(service)]}
               compact={compact}
+              canOpenLoopbackServices={canOpenLoopbackServices}
               editing
               onOpen={onOpen}
             />

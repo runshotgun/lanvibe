@@ -1,12 +1,14 @@
 {
   "name": "lanvibe",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:api": "node scripts/dev-api.mjs",
     "build": "tsc && vite build",
+    "build:exe": "tauri build --no-bundle",
+    "test:service-access": "node scripts/service-access.test.mjs",
     "build:mac": "tauri build --bundles app",
     "preview": "vite preview",
     "tauri": "tauri",

@@ -81,6 +81,7 @@ fn main() {
             api::set_favorite,
             api::reorder_favorites,
             api::start_manual_scan,
+            api::kill_service_process,
             api::get_scan_status,
             api::get_discovery_status,
             api::get_update_status,

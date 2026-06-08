@@ -33,6 +33,10 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
         .route("/api/devices/{id}", patch(api::http_update_device))
         .route("/api/services", get(api::http_list_services))
         .route(
+            "/api/services/{id}/kill-process",
+            post(api::http_kill_service_process),
+        )
+        .route(
             "/api/favorites",
             get(api::http_list_favorites).patch(api::http_set_favorite),
         )
@@ -51,7 +55,11 @@ pub async fn run(app: AppHandle, state: Arc<AppState>) -> Result<()> {
         .layer(map_response(add_no_store_headers))
         .with_state(ApiState { app, state });
 
-    axum::serve(listener, router).await?;
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 

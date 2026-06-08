@@ -37,6 +37,7 @@ pub struct Service {
     pub last_checked: String,
     pub active: bool,
     pub last_failure: Option<String>,
+    pub process_owner: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,6 +138,7 @@ pub struct SettingsView {
     pub settings: Settings,
     pub actual_dashboard_port: u16,
     pub dashboard_urls: Vec<String>,
+    pub can_open_loopback_services: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,12 +171,23 @@ pub struct ScanResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct KillProcessResult {
+    pub service_id: i64,
+    pub port: u16,
+    pub pid: u32,
+    pub process_owner: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanStatusView {
     pub phase: String,
     pub selected_devices: usize,
     pub scanned_devices: usize,
     pub discovered_services: usize,
     pub current_device_ip: Option<String>,
+    pub current_device_scanned_ports: usize,
+    pub current_device_total_ports: usize,
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
 }
@@ -187,6 +200,8 @@ impl Default for ScanStatusView {
             scanned_devices: 0,
             discovered_services: 0,
             current_device_ip: None,
+            current_device_scanned_ports: 0,
+            current_device_total_ports: 0,
             started_at: None,
             finished_at: None,
         }
@@ -267,4 +282,5 @@ pub struct ProbeHit {
     pub title: Option<String>,
     pub status_code: Option<i64>,
     pub server: Option<String>,
+    pub process_owner: Option<String>,
 }

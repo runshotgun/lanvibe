@@ -1,6 +1,7 @@
 import type {
   Device,
   DiscoveryStatus,
+  KillProcessResult,
   ScanResult,
   ScanStatus,
   Service,
@@ -133,6 +134,17 @@ export async function startScan(): Promise<ScanResult> {
   return inTauri()
     ? invokeCommand<ScanResult>("start_manual_scan")
     : request<ScanResult>("/api/scan", { method: "POST" });
+}
+
+export async function killServiceProcess(
+  serviceId: number
+): Promise<KillProcessResult> {
+  return inTauri()
+    ? invokeCommand<KillProcessResult>("kill_service_process", { serviceId })
+    : request<KillProcessResult>(
+        `/api/services/${encodeURIComponent(serviceId)}/kill-process`,
+        { method: "POST" }
+      );
 }
 
 export async function refreshDevices(): Promise<Device[]> {

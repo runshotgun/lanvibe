@@ -1,7 +1,5 @@
 import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
-import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { ArrowDownUp, Check, RefreshCw, Star } from "lucide-react";
+import { ArrowDownUp, Check, RefreshCw, Search, Star } from "lucide-react";
 
 import { openService } from "@/api";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -11,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFavicons } from "@/hooks/useFavicons";
-import { compareServices, serviceKey, serviceLabel } from "@/lib/finder";
+import {
+  compareServices,
+  serviceKey,
+  serviceLabel,
+  serviceProcessOwner,
+} from "@/lib/finder";
+import { serviceOpenBlockReason } from "@/lib/service-access";
 import type { Device, Service } from "@/types";
 
 function orderByFavoriteKeys(
@@ -37,7 +41,9 @@ export function FavoritesView({
   isFavorite,
   onFavorite,
   onReorder,
+  onKillProcess,
   onRefresh,
+  canOpenLoopbackServices,
   loading,
 }: {
   devices: Device[];
@@ -48,7 +54,9 @@ export function FavoritesView({
   isFavorite: (service: Service) => boolean;
   onFavorite: (service: Service) => void;
   onReorder: (orderedKeys: string[]) => void;
+  onKillProcess: (service: Service) => Promise<void>;
   onRefresh: () => Promise<void>;
+  canOpenLoopbackServices: boolean;
   loading: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -97,6 +105,7 @@ export function FavoritesView({
         service.server,
         service.ip,
         service.port.toString(),
+        serviceProcessOwner(service),
         serviceLabel(service, displayDevices),
       ]
         .filter(Boolean)
@@ -110,6 +119,8 @@ export function FavoritesView({
   const favicons = useFavicons(origins);
 
   const openFavorite = (service: Service) => {
+    if (serviceOpenBlockReason(service, canOpenLoopbackServices)) return;
+
     void openService(service.url);
   };
 
@@ -207,10 +218,7 @@ export function FavoritesView({
             </p>
           ) : (
             <div className="relative flex-1">
-              <FontAwesomeIcon
-                icon={faMagnifyingGlass}
-                className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-current/60"
-              />
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -251,6 +259,7 @@ export function FavoritesView({
             services={favoriteRows}
             devices={displayDevices}
             favicons={favicons}
+            canOpenLoopbackServices={canOpenLoopbackServices}
             onReorder={onReorder}
             onOpen={openFavorite}
           />
@@ -273,7 +282,9 @@ export function FavoritesView({
                 devices={displayDevices}
                 favicon={favicons[serviceOrigin(service)]}
                 loading={showingCache}
+                canOpenLoopbackServices={canOpenLoopbackServices}
                 onOpen={openFavorite}
+                onKillProcess={showingCache ? undefined : onKillProcess}
               />
             ))}
           </div>

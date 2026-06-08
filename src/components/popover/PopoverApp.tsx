@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFavicons } from "@/hooks/useFavicons";
 import { usePopoverData } from "@/hooks/usePopoverData";
 import { serviceKey } from "@/lib/finder";
+import { serviceOpenBlockReason } from "@/lib/service-access";
 import { cn } from "@/lib/utils";
 import type { Service } from "@/types";
 
@@ -33,8 +34,17 @@ export function PopoverApp() {
 }
 
 function PopoverContent() {
-  const { favorites, services, devices, loading, scanning, error, scan, reorder } =
-    usePopoverData();
+  const {
+    favorites,
+    services,
+    devices,
+    loading,
+    scanning,
+    error,
+    scan,
+    killProcess,
+    reorder,
+  } = usePopoverData();
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -71,6 +81,12 @@ function PopoverContent() {
   }, [favoriteServices.length]);
 
   const openFavorite = async (service: Service) => {
+    const openBlockReason = serviceOpenBlockReason(service, true);
+    if (openBlockReason) {
+      setActionError(openBlockReason);
+      return;
+    }
+
     try {
       setActionError(null);
       await openService(service.url);
@@ -193,6 +209,7 @@ function PopoverContent() {
                   favicon={favicons[serviceOrigin(service)]}
                   compact
                   onOpen={openFavorite}
+                  onKillProcess={killProcess}
                 />
               ))}
             </div>

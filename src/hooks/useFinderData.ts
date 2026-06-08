@@ -4,6 +4,7 @@ import {
   getDiscoveryStatus,
   getSettings,
   getScanStatus,
+  killServiceProcess,
   listDevices,
   listServices,
   refreshDevices,
@@ -34,6 +35,7 @@ export interface FinderData {
   discoveryStatus: DiscoveryStatus;
   error: string | null;
   refreshAll: () => Promise<void>;
+  killProcess: (service: Service) => Promise<void>;
   scan: () => Promise<void>;
   discoverDevices: () => Promise<void>;
   setDeviceSelected: (device: Device, selected: boolean) => Promise<void>;
@@ -48,6 +50,7 @@ export function useFinderData(): FinderData {
     settings: emptySettings,
     actualDashboardPort: emptySettings.dashboardPort,
     dashboardUrls: [],
+    canOpenLoopbackServices: true,
   });
   const [loading, setLoading] = useState(true);
   const [devicesLoaded, setDevicesLoaded] = useState(false);
@@ -188,6 +191,33 @@ export function useFinderData(): FinderData {
   }, [refreshAll]);
 
   useEffect(() => {
+    if (
+      scanStatus.phase !== "starting" &&
+      scanStatus.phase !== "scanning" &&
+      scanStatus.phase !== "updating"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const pollScanStatus = async () => {
+      try {
+        const next = await getScanStatus();
+        if (!cancelled) setScanStatus(next);
+      } catch {
+        // The regular refresh loop owns user-visible error handling.
+      }
+    };
+
+    const id = window.setInterval(() => void pollScanStatus(), 1000);
+    void pollScanStatus();
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [scanStatus.phase]);
+
+  useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
 
     const unlisteners: Array<() => void> = [];
@@ -230,6 +260,11 @@ export function useFinderData(): FinderData {
     await runBusy("scan", async () => {
       setScanStatus((current) => ({ ...current, phase: "scanning" }));
       const result = await startScan();
+      const latestScanStatus = await getScanStatus();
+      if (isActiveScan(latestScanStatus)) {
+        setScanStatus(latestScanStatus);
+        return;
+      }
       setScanStatus((current) => ({
         ...current,
         phase: "updating",
@@ -246,10 +281,33 @@ export function useFinderData(): FinderData {
       }));
     });
     scanningRef.current = false;
+    const latestScanStatus = await getScanStatus().catch(() => null);
+    if (latestScanStatus && isActiveScan(latestScanStatus)) {
+      setScanStatus(latestScanStatus);
+      return;
+    }
     setScanStatus((current) =>
       current.phase === "idle" ? current : { ...current, phase: "idle" }
     );
   }, [refreshAll, runBusy]);
+
+  const killProcess = useCallback(
+    async (service: Service) => {
+      setBusy(`kill-${service.id}`);
+      setError(null);
+      try {
+        await killServiceProcess(service.id);
+        await refreshAll(true);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [refreshAll]
+  );
 
   const discoverDevices = useCallback(async () => {
     await runBusy("devices", async () => {
@@ -330,6 +388,7 @@ export function useFinderData(): FinderData {
     discoveryStatus,
     error,
     refreshAll,
+    killProcess,
     scan,
     discoverDevices,
     setDeviceSelected,
@@ -340,4 +399,12 @@ export function useFinderData(): FinderData {
 
 function serviceIdentity(service: Service) {
   return `${service.deviceId}:${service.port}`;
+}
+
+function isActiveScan(status: ScanStatus) {
+  return (
+    status.phase === "starting" ||
+    status.phase === "scanning" ||
+    status.phase === "updating"
+  );
 }

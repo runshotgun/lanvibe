@@ -105,6 +105,7 @@ async fn migrate(pool: &SqlitePool) -> Result<()> {
             last_checked TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
             last_failure TEXT,
+            process_owner TEXT,
             UNIQUE(device_id, port),
             FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
         );
@@ -112,6 +113,11 @@ async fn migrate(pool: &SqlitePool) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    sqlx::query("ALTER TABLE services ADD COLUMN process_owner TEXT")
+        .execute(pool)
+        .await
+        .ok();
 
     sqlx::query(
         r#"
@@ -567,14 +573,15 @@ pub async fn upsert_service_for_device(
     hit: &ProbeHit,
 ) -> Result<Service> {
     let now = Utc::now().to_rfc3339();
+    let process_owner = normalize_process_owner(hit.process_owner.as_deref());
 
     sqlx::query(
         r#"
         INSERT INTO services(
             device_id, ip, port, scheme, url, title, status_code, server,
-            first_seen, last_seen, last_checked, active, last_failure
+            first_seen, last_seen, last_checked, active, last_failure, process_owner
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?)
         ON CONFLICT(device_id, port) DO UPDATE SET
             ip = excluded.ip,
             scheme = excluded.scheme,
@@ -585,7 +592,8 @@ pub async fn upsert_service_for_device(
             last_seen = excluded.last_seen,
             last_checked = excluded.last_checked,
             active = 1,
-            last_failure = NULL
+            last_failure = NULL,
+            process_owner = excluded.process_owner
         "#,
     )
     .bind(device_id)
@@ -599,6 +607,7 @@ pub async fn upsert_service_for_device(
     .bind(&now)
     .bind(&now)
     .bind(&now)
+    .bind(process_owner)
     .execute(pool)
     .await?;
 
@@ -650,16 +659,31 @@ pub async fn mark_device_services_inactive(
 }
 
 pub async fn mark_service_active(pool: &SqlitePool, device_id: &str, port: u16) -> Result<()> {
+    mark_service_active_with_process_owner(pool, device_id, port, None).await
+}
+
+pub async fn mark_service_active_with_process_owner(
+    pool: &SqlitePool,
+    device_id: &str,
+    port: u16,
+    process_owner: Option<&str>,
+) -> Result<()> {
     let now = Utc::now().to_rfc3339();
+    let process_owner = normalize_process_owner(process_owner);
     sqlx::query(
         r#"
         UPDATE services
-        SET active = 1, last_seen = ?, last_checked = ?, last_failure = NULL
+        SET active = 1,
+            last_seen = ?,
+            last_checked = ?,
+            last_failure = NULL,
+            process_owner = COALESCE(?, process_owner)
         WHERE device_id = ? AND port = ?
         "#,
     )
     .bind(&now)
     .bind(&now)
+    .bind(process_owner)
     .bind(device_id)
     .bind(i64::from(port))
     .execute(pool)
@@ -751,6 +775,14 @@ async fn get_service_by_device_port(
     Ok(service_from_row(row))
 }
 
+pub async fn get_service_by_id(pool: &SqlitePool, id: i64) -> Result<Service> {
+    let row = sqlx::query("SELECT * FROM services WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+    Ok(service_from_row(row))
+}
+
 fn device_from_row(row: sqlx::sqlite::SqliteRow) -> Device {
     Device {
         id: row.get("id"),
@@ -782,7 +814,15 @@ fn service_from_row(row: sqlx::sqlite::SqliteRow) -> Service {
         last_checked: row.get("last_checked"),
         active: row.get::<i64, _>("active") != 0,
         last_failure: row.get("last_failure"),
+        process_owner: row.get("process_owner"),
     }
+}
+
+fn normalize_process_owner(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 fn parse_bool(values: &HashMap<String, String>, key: &str, default: bool) -> bool {
@@ -850,6 +890,7 @@ mod tests {
                 title: Some("Old".to_string()),
                 status_code: Some(200),
                 server: None,
+                process_owner: None,
             },
         )
         .await
@@ -894,6 +935,7 @@ mod tests {
                 title: Some("Recent".to_string()),
                 status_code: Some(200),
                 server: None,
+                process_owner: None,
             },
         )
         .await
@@ -936,6 +978,7 @@ mod tests {
                 title: Some("Hidden when off".to_string()),
                 status_code: Some(200),
                 server: None,
+                process_owner: None,
             },
         )
         .await
@@ -979,6 +1022,7 @@ mod tests {
                 title: Some("Favorite App".to_string()),
                 status_code: Some(200),
                 server: Some("test-server".to_string()),
+                process_owner: None,
             },
         )
         .await
@@ -994,6 +1038,54 @@ mod tests {
         assert_eq!(services[0].server.as_deref(), Some("test-server"));
         assert!(services[0].active);
         assert!(services[0].last_failure.is_none());
+    }
+
+    #[tokio::test]
+    async fn upsert_service_persists_process_owner() {
+        let dir = tempdir().unwrap();
+        let pool = connect(&dir.path().join("test.sqlite3")).await.unwrap();
+        let device = upsert_device(
+            &pool,
+            &DiscoveredDevice {
+                ip: "127.0.0.1".to_string(),
+                hostname: Some("host-pc".to_string()),
+                mac: None,
+                vendor: None,
+                source: "test".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        update_device_flags(&pool, &device.id, true, false, None)
+            .await
+            .unwrap();
+
+        let service = upsert_service(
+            &pool,
+            &device,
+            &ProbeHit {
+                port: 5173,
+                scheme: "http".to_string(),
+                url: "http://127.0.0.1:5173/".to_string(),
+                title: Some("Vite".to_string()),
+                status_code: Some(200),
+                server: None,
+                process_owner: Some("node.exe (PID 4242)".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            service.process_owner.as_deref(),
+            Some("node.exe (PID 4242)")
+        );
+
+        let services = list_retained_services(&pool, 30).await.unwrap();
+        assert_eq!(
+            services[0].process_owner.as_deref(),
+            Some("node.exe (PID 4242)")
+        );
     }
 
     #[tokio::test]

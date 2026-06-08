@@ -26,6 +26,7 @@ export interface Service {
   lastChecked: string;
   active: boolean;
   lastFailure?: string | null;
+  processOwner?: string | null;
 }
 
 export interface Settings {
@@ -47,11 +48,19 @@ export interface SettingsView {
   settings: Settings;
   actualDashboardPort: number;
   dashboardUrls: string[];
+  canOpenLoopbackServices: boolean;
 }
 
 export interface ScanResult {
   scannedDevices: number;
   discoveredServices: number;
+}
+
+export interface KillProcessResult {
+  serviceId: number;
+  port: number;
+  pid: number;
+  processOwner: string;
 }
 
 export type ScanPhase = "idle" | "starting" | "scanning" | "updating";
@@ -62,6 +71,8 @@ export interface ScanStatus {
   scannedDevices: number;
   discoveredServices: number;
   currentDeviceIp?: string | null;
+  currentDeviceScannedPorts?: number;
+  currentDeviceTotalPorts?: number;
   startedAt?: string | null;
   finishedAt?: string | null;
 }

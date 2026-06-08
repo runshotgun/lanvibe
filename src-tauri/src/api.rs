@@ -1,9 +1,11 @@
 use axum::{
-    extract::{Path, Query, State as AxumState},
+    extract::{connect_info::ConnectInfo, Path, Query, State as AxumState},
+    http::StatusCode,
     Json,
 };
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 #[cfg(target_os = "windows")]
 use std::path::Path as StdPath;
 use std::sync::{
@@ -14,11 +16,12 @@ use tauri::{AppHandle, Emitter, State as TauriState};
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::{
-    app_state::{ApiState, SharedState},
+    app_state::{can_http_client_open_loopback_services, ApiState, SharedState},
     db, discovery,
     models::{
-        Device, DevicePatch, DiscoveryStatusView, FavoriteOrderPatch, FavoritePatch, ScanResult,
-        ScanStatusView, Service, Settings, SettingsView, UpdateStatusView,
+        Device, DevicePatch, DiscoveryStatusView, FavoriteOrderPatch, FavoritePatch,
+        KillProcessResult, ScanResult, ScanStatusView, Service, Settings, SettingsView,
+        UpdateStatusView,
     },
     scanner, startup, tray,
 };
@@ -111,6 +114,17 @@ pub async fn start_manual_scan(
     state: TauriState<'_, SharedState>,
 ) -> Result<ScanResult, String> {
     scanner::scan_selected_devices(state.inner().clone(), Some(app))
+        .await
+        .map_err(to_string)
+}
+
+#[tauri::command]
+pub async fn kill_service_process(
+    app: AppHandle,
+    state: TauriState<'_, SharedState>,
+    service_id: i64,
+) -> Result<KillProcessResult, String> {
+    kill_service_process_by_id(app, state.inner().clone(), service_id)
         .await
         .map_err(to_string)
 }
@@ -258,6 +272,31 @@ pub async fn http_list_services(
         .map_err(to_string)
 }
 
+#[derive(Debug, Serialize)]
+pub struct ApiError {
+    pub message: String,
+}
+
+type ApiJsonError = (StatusCode, Json<ApiError>);
+
+pub async fn http_kill_service_process(
+    AxumState(api): AxumState<ApiState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(id): Path<i64>,
+) -> Result<Json<KillProcessResult>, ApiJsonError> {
+    if !can_http_client_open_loopback_services(peer.ip()) {
+        return Err(json_error(
+            StatusCode::FORBIDDEN,
+            "Only the host machine can kill local service processes",
+        ));
+    }
+
+    kill_service_process_by_id(api.app, api.state, id)
+        .await
+        .map(Json)
+        .map_err(|error| json_error(StatusCode::BAD_REQUEST, error.to_string()))
+}
+
 pub async fn http_list_favorites(
     AxumState(api): AxumState<ApiState>,
 ) -> Result<Json<Vec<String>>, String> {
@@ -332,21 +371,70 @@ pub async fn http_trigger_host_update(
 
 pub async fn http_get_settings(
     AxumState(api): AxumState<ApiState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
 ) -> Result<Json<SettingsView>, String> {
-    Ok(Json(api.state.settings_view().await))
+    Ok(Json(
+        api.state
+            .settings_view_with_loopback_access(can_http_client_open_loopback_services(peer.ip()))
+            .await,
+    ))
 }
 
 pub async fn http_update_settings(
     AxumState(api): AxumState<ApiState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     Json(settings): Json<Settings>,
 ) -> Result<Json<SettingsView>, String> {
     save_settings(api.app.clone(), api.state.clone(), settings).await?;
     let _ = tray::refresh(&api.app).await;
-    Ok(Json(api.state.settings_view().await))
+    Ok(Json(
+        api.state
+            .settings_view_with_loopback_access(can_http_client_open_loopback_services(peer.ip()))
+            .await,
+    ))
+}
+
+async fn kill_service_process_by_id(
+    app: AppHandle,
+    state: SharedState,
+    service_id: i64,
+) -> Result<KillProcessResult, String> {
+    let service = db::get_service_by_id(&state.pool, service_id)
+        .await
+        .map_err(to_string)?;
+    let own_dashboard_port = *state.dashboard_port.read().await;
+    let result = scanner::kill_local_service_process(&service, own_dashboard_port)
+        .await
+        .map_err(to_string)?;
+    db::mark_service_inactive(
+        &state.pool,
+        &service.device_id,
+        service.port,
+        "Process terminated by LANVibe",
+    )
+    .await
+    .map_err(to_string)?;
+    let _ = app.emit(
+        "services-updated",
+        ScanResult {
+            scanned_devices: 0,
+            discovered_services: 0,
+        },
+    );
+    Ok(result)
 }
 
 fn to_string(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+fn json_error(status: StatusCode, message: impl Into<String>) -> ApiJsonError {
+    (
+        status,
+        Json(ApiError {
+            message: message.into(),
+        }),
+    )
 }
 
 async fn current_update_status(app: &AppHandle, state: SharedState) -> UpdateStatusView {

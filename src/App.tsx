@@ -130,7 +130,9 @@ export default function App() {
           isFavorite={isFavorite}
           onFavorite={toggleFavorite}
           onReorder={reorderFavorites}
+          onKillProcess={data.killProcess}
           onRefresh={data.refreshAll}
+          canOpenLoopbackServices={data.settingsView.canOpenLoopbackServices}
           loading={data.loading || favoritesLoading || !data.devicesLoaded}
         />
       ) : null}
@@ -145,6 +147,8 @@ export default function App() {
           onScan={() => void data.scan()}
           isFavorite={isFavorite}
           onFavorite={toggleFavorite}
+          onKillProcess={data.killProcess}
+          canOpenLoopbackServices={data.settingsView.canOpenLoopbackServices}
         />
       ) : null}
 

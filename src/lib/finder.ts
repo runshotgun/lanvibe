@@ -38,6 +38,11 @@ export function hasPageTitle(service: Service): boolean {
   return Boolean(service.title?.trim());
 }
 
+export function serviceProcessOwner(service: Service): string | null {
+  const owner = service.processOwner?.trim();
+  return owner || null;
+}
+
 export function serviceSortLabel(service: Service, devices: Device[]): string {
   return service.title?.trim() || serviceLabel(service, devices);
 }

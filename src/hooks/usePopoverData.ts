@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   inTauri,
+  killServiceProcess,
   listDevices,
   listFavorites,
   listServices,
@@ -52,6 +53,21 @@ export function usePopoverData() {
       setScanning(false);
     }
   }, [reload]);
+
+  const killProcess = useCallback(
+    async (service: Service) => {
+      try {
+        setError(null);
+        await killServiceProcess(service.id);
+        await reload();
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(message);
+        throw new Error(message);
+      }
+    },
+    [reload]
+  );
 
   const reorder = useCallback(
     async (orderedKeys: string[]) => {
@@ -110,5 +126,16 @@ export function usePopoverData() {
     };
   }, [reload]);
 
-  return { favorites, services, devices, loading, scanning, error, reload, scan, reorder };
+  return {
+    favorites,
+    services,
+    devices,
+    loading,
+    scanning,
+    error,
+    reload,
+    scan,
+    killProcess,
+    reorder,
+  };
 }

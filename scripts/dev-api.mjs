@@ -639,6 +639,7 @@ const server = http.createServer(async (request, response) => {
         settings,
         actualDashboardPort: API_PORT,
         dashboardUrls: localIps.map((ip) => `http://${ip}:${API_PORT}`),
+        canOpenLoopbackServices: true,
       });
     }
     if (request.method === "PATCH" && url.pathname === "/api/settings") {
@@ -648,6 +649,7 @@ const server = http.createServer(async (request, response) => {
         settings,
         actualDashboardPort: API_PORT,
         dashboardUrls: localIps.map((ip) => `http://${ip}:${API_PORT}`),
+        canOpenLoopbackServices: true,
       });
     }
     if (request.method === "PATCH" && url.pathname.startsWith("/api/devices/")) {
